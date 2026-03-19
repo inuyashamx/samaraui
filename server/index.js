@@ -1,0 +1,164 @@
+import express from "express";
+import { createServer } from "http";
+import http from "http";
+import https from "https";
+import { Server } from "socket.io";
+import { fileURLToPath } from "url";
+import { dirname, join, resolve } from "path";
+import { readdirSync, statSync } from "fs";
+import { homedir } from "os";
+import AgentManager from "./agent-manager.js";
+import PreviewBrowser from "./preview-browser.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export async function startServer({ port, cwd }) {
+  const app = express();
+  const server = createServer(app);
+  const io = new Server(server, { cors: { origin: "*" } });
+
+  let agentManager = null;
+  let previewTarget = null;
+  const previewBrowser = new PreviewBrowser();
+
+  app.use(express.json());
+
+  // ── UI static files under /_app/ ──
+  app.use("/_app", express.static(join(__dirname, "..", "public")));
+
+  // Root: serve UI only if no preview target is active
+  app.get("/", (req, res, next) => {
+    if (previewTarget) return next(); // let proxy handle it
+    res.sendFile(join(__dirname, "..", "public", "index.html"));
+  });
+
+  // ── API routes ──
+  app.get("/api/check-dir", (req, res) => {
+    const dir = req.query.path;
+    if (!dir) return res.json({ valid: false });
+    try {
+      const resolved = resolve(dir);
+      const s = statSync(resolved);
+      res.json({ valid: s.isDirectory(), path: resolved });
+    } catch {
+      res.json({ valid: false });
+    }
+  });
+
+  app.get("/api/home", (req, res) => {
+    const home = homedir();
+    const desktop = join(home, "Desktop");
+    const onedrive = join(home, "OneDrive", "Escritorio");
+    const docs = join(home, "Documents");
+    const suggestions = [];
+    for (const p of [home, desktop, onedrive, docs]) {
+      try { if (statSync(p).isDirectory()) suggestions.push(p); } catch {}
+    }
+    const projectDirs = [];
+    for (const base of [desktop, onedrive, join(onedrive, "Projects")]) {
+      try {
+        const entries = readdirSync(base, { withFileTypes: true });
+        for (const e of entries) {
+          if (e.isDirectory() && !e.name.startsWith(".")) {
+            projectDirs.push({ name: e.name, path: join(base, e.name) });
+          }
+        }
+      } catch {}
+    }
+    res.json({ home, suggestions, projects: projectDirs });
+  });
+
+  app.post("/api/set-preview", (req, res) => {
+    previewTarget = req.body.url || null;
+    if (agentManager) agentManager.setPreviewBaseUrl(previewTarget);
+    console.log(`  Preview target set: ${previewTarget}`);
+    res.json({ ok: true, url: previewTarget });
+  });
+
+  app.post("/api/set-cwd", (req, res) => {
+    const { cwd: newCwd } = req.body;
+    if (!newCwd) return res.status(400).json({ error: "cwd required" });
+    const resolved = resolve(newCwd);
+    agentManager = new AgentManager(resolved);
+    agentManager.setPreviewBrowser(previewBrowser);
+    console.log(`  Working directory set: ${resolved}`);
+    res.json({ cwd: resolved });
+  });
+
+  // ── Reverse proxy: everything not /_app/ or /api/ goes to preview target ──
+  app.use((req, res, next) => {
+    // Skip if no preview target or if it's a socket.io/api/_app request
+    if (!previewTarget || req.path.startsWith("/_app") || req.path.startsWith("/api") || req.path.startsWith("/socket.io")) {
+      return next();
+    }
+
+    const targetUrl = previewTarget + req.url;
+    let url;
+    try {
+      url = new URL(targetUrl);
+    } catch {
+      return next();
+    }
+    const getter = url.protocol === "https:" ? https : http;
+
+    const proxyReq = getter.request(targetUrl, {
+      method: req.method,
+      headers: { ...req.headers, host: url.host },
+    }, (proxyRes) => {
+      const headers = { ...proxyRes.headers };
+      delete headers["x-frame-options"];
+      delete headers["content-security-policy"];
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on("error", (err) => {
+      res.status(502).send("Preview server not reachable: " + err.message);
+    });
+
+    req.pipe(proxyReq);
+  });
+
+  // ── Socket.io ──
+  io.on("connection", (socket) => {
+    console.log("  Client connected");
+
+    socket.on("agent:start", ({ agentId, prompt }) => {
+      if (!agentManager) {
+        socket.emit("agent:error", { agentId, error: "No working directory selected" });
+        return;
+      }
+      console.log(`  Agent ${agentId} started`);
+      agentManager.runAgent(agentId, prompt, socket);
+    });
+
+    socket.on("agent:message", ({ agentId, prompt }) => {
+      if (!agentManager) {
+        socket.emit("agent:error", { agentId, error: "No working directory selected" });
+        return;
+      }
+      console.log(`  Agent ${agentId} continuing`);
+      agentManager.runAgent(agentId, prompt, socket, true);
+    });
+
+    socket.on("agent:interrupt", ({ agentId }) => {
+      console.log(`  Agent ${agentId} interrupted`);
+      agentManager?.interrupt(agentId);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("  Client disconnected");
+    });
+  });
+
+  await new Promise((res) => {
+    server.listen(port, () => res());
+  });
+
+  return {
+    server,
+    launchBrowser: async (url) => {
+      await previewBrowser.launch(url);
+    },
+  };
+}
