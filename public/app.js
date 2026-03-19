@@ -101,7 +101,7 @@ async function openFolder() {
   }
 }
 
-function initMainUI() {
+async function initMainUI() {
   const app = document.getElementById("app");
   app.innerHTML = `
     <div id="main-app" class="h-full flex flex-col">
@@ -126,7 +126,29 @@ function initMainUI() {
       <div id="tab-content" class="flex-1 flex overflow-hidden"></div>
     </div>
   `;
-  createTab("Agent 1");
+
+  // Try to restore previous session
+  const saved = await loadState(state.cwd);
+  if (saved && saved.tabs && saved.tabs.length > 0) {
+    for (const t of saved.tabs) {
+      const tab = {
+        ...t,
+        chatHidden: false,
+      };
+      state.tabs.push(tab);
+    }
+    const activeId = saved.activeTabId || state.tabs[0].id;
+    // Restore preview proxy if a tab had a previewUrl
+    const activeTab = state.tabs.find((t) => t.id === activeId);
+    const previewTab = activeTab?.previewUrl ? activeTab : state.tabs.find((t) => t.previewUrl);
+    if (previewTab?.previewUrl) {
+      await setPreviewTarget(previewTab.previewUrl);
+    }
+    switchTab(activeId);
+  } else {
+    createTab("Agent 1");
+  }
+
   fetchUsage();
 }
 
@@ -304,6 +326,7 @@ socket.on("agent:result", ({ agentId, result, errors, subtype, cost, turns, dura
     renderChat(agentId);
     updateInputArea(agentId);
   }
+  saveState();
 });
 
 socket.on("agent:error", ({ agentId, error }) => {
@@ -368,6 +391,7 @@ function closeTab(id) {
     }
   }
   updateTabBar();
+  saveState();
 }
 
 function switchTab(id) {
@@ -394,6 +418,8 @@ function switchTab(id) {
     panel.style.display = "flex";
     // Re-render chat to pick up any messages received while tab was hidden
     renderChat(id);
+    // Sync input enabled/disabled state
+    updateInputArea(id);
   }
 
   // Focus input
@@ -483,6 +509,22 @@ function renderTabContent(tabId) {
           <button class="text-xs text-gray-500 hover:text-white px-1" onclick="zoomPreview('${tab.id}', 0)" title="Reset zoom">⟲</button>
           <span class="text-xs text-gray-600 mx-1">|</span>
           <button class="text-xs text-gray-500 hover:text-white px-1" onclick="openPreviewExternal('${tab.id}')" title="Open in browser">↗</button>
+          <span class="text-xs text-gray-600 mx-1">|</span>
+          <span id="preview-url-display-${tab.id}">
+            <button class="text-xs px-2 py-0.5 rounded font-mono truncate max-w-40 ${tab.previewUrl ? 'text-gray-500 hover:text-white' : 'bg-accent text-black hover:bg-accent-light'}" onclick="showPreviewUrlInput('${tab.id}')" title="Click to change preview URL">${escapeHtml(tab.previewUrl || 'Set URL')}</button>
+          </span>
+          <span id="preview-url-edit-${tab.id}" style="display:none" class="flex items-center gap-1">
+            <input
+              type="text"
+              id="preview-url-input-${tab.id}"
+              class="bg-surface-2 border border-accent rounded px-2 py-0.5 text-xs text-gray-200 outline-none font-mono w-44"
+              value="${escapeHtml(tab.previewUrl || '')}"
+              placeholder="http://localhost:8081"
+              onkeydown="if(event.key==='Enter') applyPreviewUrl('${tab.id}'); if(event.key==='Escape') hidePreviewUrlInput('${tab.id}');"
+            >
+            <button class="text-xs text-green-400 hover:text-green-300 px-1" onclick="applyPreviewUrl('${tab.id}')">OK</button>
+            <button class="text-xs text-gray-500 hover:text-white px-1" onclick="hidePreviewUrlInput('${tab.id}')">X</button>
+          </span>
         </div>
         <div class="flex-1 overflow-hidden">
           ${tab.previewUrl
@@ -687,9 +729,13 @@ function handleInputKeydown(event, tabId) {
 async function updatePreviewUrl(tabId, url) {
   const tab = state.tabs.find((t) => t.id === tabId);
   if (!tab) return;
-  tab.previewUrl = url;
+  let cleaned = (url || "").trim();
+  if (cleaned && !/^https?:\/\//.test(cleaned)) {
+    cleaned = "http://" + cleaned;
+  }
+  tab.previewUrl = cleaned;
 
-  if (url) await setPreviewTarget(url);
+  if (cleaned) await setPreviewTarget(cleaned);
   renderTabContent(tabId);
 }
 
@@ -739,6 +785,42 @@ function zoomPreview(tabId, delta) {
 
   const label = document.getElementById(`zoom-level-${tabId}`);
   if (label) label.textContent = `${tab.zoom}%`;
+}
+
+function showPreviewUrlInput(tabId) {
+  const display = document.getElementById(`preview-url-display-${tabId}`);
+  const edit = document.getElementById(`preview-url-edit-${tabId}`);
+  if (display) display.style.display = "none";
+  if (edit) {
+    edit.style.display = "flex";
+    const input = document.getElementById(`preview-url-input-${tabId}`);
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
+function hidePreviewUrlInput(tabId) {
+  const display = document.getElementById(`preview-url-display-${tabId}`);
+  const edit = document.getElementById(`preview-url-edit-${tabId}`);
+  if (display) display.style.display = "";
+  if (edit) edit.style.display = "none";
+}
+
+async function applyPreviewUrl(tabId) {
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  const input = document.getElementById(`preview-url-input-${tabId}`);
+  let url = (input?.value || "").trim();
+  if (!url) {
+    tab.previewUrl = "";
+    renderTabContent(tabId);
+    return;
+  }
+  if (!/^https?:\/\//.test(url)) {
+    url = "http://" + url;
+  }
+  tab.previewUrl = url;
+  await setPreviewTarget(url);
+  renderTabContent(tabId);
 }
 
 function navigatePreviewAddress(tabId) {
@@ -827,6 +909,52 @@ function renderMarkdown(text) {
     return escapeHtml(text);
   }
 }
+
+// ── State Persistence ──
+function getSerializableState() {
+  return {
+    tabs: state.tabs.map((t) => ({
+      id: t.id,
+      name: t.name,
+      status: t.status === "running" ? "idle" : t.status,
+      messages: t.messages,
+      sessionId: t.sessionId,
+      previewUrl: t.previewUrl,
+      previewRoute: t.previewRoute,
+      zoom: t.zoom,
+      model: t.model,
+      lastCost: t.lastCost,
+      lastDuration: t.lastDuration,
+      lastTurns: t.lastTurns,
+    })),
+    activeTabId: state.activeTabId,
+  };
+}
+
+async function saveState() {
+  if (!state.cwd || state.tabs.length === 0) return;
+  try {
+    await fetch("/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cwd: state.cwd, state: getSerializableState() }),
+    });
+  } catch {}
+}
+
+async function loadState(cwd) {
+  try {
+    const res = await fetch(`/api/state?cwd=${encodeURIComponent(cwd)}`);
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// Auto-save every 10s and on beforeunload
+setInterval(() => { if (state.ready) saveState(); }, 10000);
+window.addEventListener("beforeunload", () => { if (state.ready) saveState(); });
 
 // ── Usage Bar ──
 async function fetchUsage() {

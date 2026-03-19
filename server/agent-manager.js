@@ -44,6 +44,10 @@ class AgentManager {
     this.previewBrowser = browser;
   }
 
+  setPreviewBaseUrl(url) {
+    this.previewBaseUrl = url;
+  }
+
   _createPreviewServer(socket, agentId) {
     const browser = this.previewBrowser;
 
@@ -57,7 +61,7 @@ class AgentManager {
           {},
           async () => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const url = await browser.getUrl();
+            const url = await browser.getUrl(agentId);
             return { content: [{ type: "text", text: `Current preview URL: ${url}` }] };
           }
         ),
@@ -69,7 +73,7 @@ class AgentManager {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             // Also emit socket event to update the address bar in UI
             socket.emit("preview:navigate", { agentId, route });
-            await browser.navigate(route);
+            await browser.navigate(agentId, route);
             return { content: [{ type: "text", text: `Preview navigated to ${route}` }] };
           }
         ),
@@ -80,7 +84,7 @@ class AgentManager {
           async () => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             socket.emit("preview:refresh", { agentId });
-            await browser.refresh();
+            await browser.refresh(agentId);
             return { content: [{ type: "text", text: "Preview refreshed" }] };
           }
         ),
@@ -90,7 +94,7 @@ class AgentManager {
           {},
           async () => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const data = await browser.screenshot();
+            const data = await browser.screenshot(agentId);
             if (!data) {
               return { content: [{ type: "text", text: "Could not capture screenshot. Preview may not be loaded." }] };
             }
@@ -109,7 +113,7 @@ class AgentManager {
           { selector: z.string().describe("CSS selector, e.g. '.my-class', '#my-id', 'paper-button'") },
           async ({ selector }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const result = await browser.inspect(selector);
+            const result = await browser.inspect(agentId, selector);
             return { content: [{ type: "text", text: result }] };
           }
         ),
@@ -119,7 +123,7 @@ class AgentManager {
           { selector: z.string().optional().describe("CSS selector. Omit for full body.") },
           async ({ selector }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const html = await browser.getPageContent(selector);
+            const html = await browser.getPageContent(agentId, selector);
             return { content: [{ type: "text", text: html }] };
           }
         ),
@@ -129,7 +133,7 @@ class AgentManager {
           { selector: z.string().describe("CSS selector of element to click") },
           async ({ selector }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const result = await browser.click(selector);
+            const result = await browser.click(agentId, selector);
             return { content: [{ type: "text", text: result }] };
           }
         ),
@@ -142,7 +146,7 @@ class AgentManager {
           },
           async ({ selector, text }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const result = await browser.type(selector, text);
+            const result = await browser.type(agentId, selector, text);
             return { content: [{ type: "text", text: result }] };
           }
         ),

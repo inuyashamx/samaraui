@@ -35,56 +35,72 @@ class PreviewBrowser {
     await this.page.waitForLoadState("domcontentloaded");
   }
 
-  async _getPreviewFrame() {
-    // Find the preview iframe in the page
-    const frame = this.page.frame({ url: /.*/ });
-    // Get all frames and find the preview one
-    const frames = this.page.frames();
-    for (const f of frames) {
-      const url = f.url();
-      if (url !== this.page.url() && !url.startsWith("about:")) {
-        return f;
-      }
-    }
-    return null;
+  async _getPreviewFrame(agentId) {
+    if (!this.page) return null;
+    const iframeEl = await this.page.$(`#preview-frame-${agentId}`);
+    if (!iframeEl) return null;
+    return await iframeEl.contentFrame();
   }
 
-  async screenshot() {
-    const frame = await this._getPreviewFrame();
-    if (!frame) return null;
+  async screenshot(agentId) {
+    if (!this.page) return null;
+    // Temporarily show the tab panel if hidden so Playwright can capture it
+    const wasHidden = await this.page.evaluate((id) => {
+      const panel = document.getElementById(`tab-panel-${id}`);
+      if (!panel) return false;
+      if (panel.style.display === "none") {
+        panel.style.display = "flex";
+        return true;
+      }
+      return false;
+    }, agentId);
 
-    // Screenshot the iframe element
-    const iframeEl = await this.page.$("iframe.preview-frame");
-    if (!iframeEl) return null;
+    const iframeEl = await this.page.$(`#preview-frame-${agentId}`);
+    if (!iframeEl) {
+      if (wasHidden) {
+        await this.page.evaluate((id) => {
+          const panel = document.getElementById(`tab-panel-${id}`);
+          if (panel) panel.style.display = "none";
+        }, agentId);
+      }
+      return null;
+    }
 
     const buffer = await iframeEl.screenshot({ type: "png" });
+
+    // Restore hidden state
+    if (wasHidden) {
+      await this.page.evaluate((id) => {
+        const panel = document.getElementById(`tab-panel-${id}`);
+        if (panel) panel.style.display = "none";
+      }, agentId);
+    }
+
     return buffer.toString("base64");
   }
 
-  async navigate(route) {
-    const frame = await this._getPreviewFrame();
+  async navigate(agentId, route) {
+    const frame = await this._getPreviewFrame(agentId);
     if (frame) {
       await frame.goto(frame.url().replace(/\/[^/]*$/, "") + route, {
         waitUntil: "domcontentloaded",
         timeout: 10000,
       }).catch(() => {});
     }
-    // Also update the address bar input
-    await this.page.fill('[id^="preview-address-"]', route).catch(() => {});
+    await this.page.fill(`#preview-address-${agentId}`, route).catch(() => {});
   }
 
-  async refresh() {
-    const frame = await this._getPreviewFrame();
+  async refresh(agentId) {
+    const frame = await this._getPreviewFrame(agentId);
     if (frame) {
-      // Reload current URL in the frame, preserving the route
       await frame.evaluate(() => window.location.reload());
       await this.page.waitForTimeout(1500);
     }
   }
 
-  async click(selector) {
-    const frame = await this._getPreviewFrame();
-    if (!frame) return "No preview frame found";
+  async click(agentId, selector) {
+    const frame = await this._getPreviewFrame(agentId);
+    if (!frame) return "No preview frame found for this agent";
     try {
       await frame.click(selector, { timeout: 5000 });
       return `Clicked: ${selector}`;
@@ -93,9 +109,9 @@ class PreviewBrowser {
     }
   }
 
-  async type(selector, text) {
-    const frame = await this._getPreviewFrame();
-    if (!frame) return "No preview frame found";
+  async type(agentId, selector, text) {
+    const frame = await this._getPreviewFrame(agentId);
+    if (!frame) return "No preview frame found for this agent";
     try {
       await frame.fill(selector, text, { timeout: 5000 });
       return `Typed "${text}" into ${selector}`;
@@ -104,9 +120,9 @@ class PreviewBrowser {
     }
   }
 
-  async inspect(selector) {
-    const frame = await this._getPreviewFrame();
-    if (!frame) return "No preview frame found";
+  async inspect(agentId, selector) {
+    const frame = await this._getPreviewFrame(agentId);
+    if (!frame) return "No preview frame found for this agent";
     try {
       const result = await frame.evaluate((sel) => {
         const els = document.querySelectorAll(sel);
@@ -127,8 +143,8 @@ class PreviewBrowser {
     }
   }
 
-  async getUrl() {
-    const frame = await this._getPreviewFrame();
+  async getUrl(agentId) {
+    const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "/";
     try {
       return new URL(frame.url()).pathname;
@@ -137,9 +153,9 @@ class PreviewBrowser {
     }
   }
 
-  async getPageContent(selector) {
-    const frame = await this._getPreviewFrame();
-    if (!frame) return "No preview frame found";
+  async getPageContent(agentId, selector) {
+    const frame = await this._getPreviewFrame(agentId);
+    if (!frame) return "No preview frame found for this agent";
     try {
       const html = await frame.evaluate((sel) => {
         const el = sel ? document.querySelector(sel) : document.body;

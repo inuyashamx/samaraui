@@ -5,7 +5,8 @@ import https from "https";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
-import { readFileSync, readdirSync, statSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
+import { createHash } from "crypto";
 import { homedir } from "os";
 import AgentManager from "./agent-manager.js";
 import PreviewBrowser from "./preview-browser.js";
@@ -69,7 +70,11 @@ export async function startServer({ port, cwd }) {
   });
 
   app.post("/api/set-preview", (req, res) => {
-    previewTarget = req.body.url || null;
+    let url = (req.body.url || "").trim();
+    if (url && !/^https?:\/\//.test(url)) {
+      url = "http://" + url;
+    }
+    previewTarget = url || null;
     if (agentManager) agentManager.setPreviewBaseUrl(previewTarget);
     console.log(`  Preview target set: ${previewTarget}`);
     res.json({ ok: true, url: previewTarget });
@@ -107,6 +112,39 @@ export async function startServer({ port, cwd }) {
       res.json(data);
     } catch (err) {
       res.json({ error: err.message });
+    }
+  });
+
+  // ── State persistence ──
+  const stateDir = join(homedir(), ".samara-ui", "sessions");
+
+  function stateFile(dir) {
+    const hash = createHash("md5").update(dir).digest("hex").slice(0, 12);
+    return join(stateDir, `${hash}.json`);
+  }
+
+  app.get("/api/state", (req, res) => {
+    const dir = req.query.cwd;
+    if (!dir) return res.json({ error: "cwd required" });
+    try {
+      const path = stateFile(dir);
+      if (!existsSync(path)) return res.json(null);
+      const data = JSON.parse(readFileSync(path, "utf8"));
+      res.json(data);
+    } catch {
+      res.json(null);
+    }
+  });
+
+  app.post("/api/state", (req, res) => {
+    const { cwd: dir, state } = req.body;
+    if (!dir || !state) return res.status(400).json({ error: "cwd and state required" });
+    try {
+      mkdirSync(stateDir, { recursive: true });
+      writeFileSync(stateFile(dir), JSON.stringify(state, null, 2));
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 
