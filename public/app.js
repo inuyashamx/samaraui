@@ -109,6 +109,7 @@ function initMainUI() {
       <div class="flex items-center bg-surface-1 border-b border-border px-2 h-10 shrink-0">
         <div id="tab-bar" class="flex items-center gap-1 overflow-x-auto flex-1"></div>
         <div class="flex items-center gap-1 ml-2">
+          <div id="usage-bar" class="flex items-center gap-2 mr-2" title="Claude Code usage"></div>
           <button
             class="px-2 py-1 text-xs bg-surface-2 hover:bg-surface-3 rounded text-gray-500 hover:text-white transition-colors"
             onclick="changeCwd()"
@@ -126,6 +127,7 @@ function initMainUI() {
     </div>
   `;
   createTab("Agent 1");
+  fetchUsage();
 }
 
 function changeCwd() {
@@ -825,6 +827,54 @@ function renderMarkdown(text) {
     return escapeHtml(text);
   }
 }
+
+// ── Usage Bar ──
+async function fetchUsage() {
+  const bar = document.getElementById("usage-bar");
+  if (!bar) return;
+
+  try {
+    const res = await fetch("/api/usage");
+    const data = await res.json();
+    if (data.error) {
+      bar.innerHTML = "";
+      return;
+    }
+    bar.innerHTML = renderUsageBar(data);
+  } catch {
+    bar.innerHTML = "";
+  }
+}
+
+function renderUsageBar(data) {
+  const items = [];
+
+  if (data.five_hour) {
+    items.push({ label: "5h", pct: data.five_hour.utilization, resets: data.five_hour.resets_at });
+  }
+  if (data.seven_day) {
+    items.push({ label: "7d", pct: data.seven_day.utilization, resets: data.seven_day.resets_at });
+  }
+
+  if (items.length === 0) return "";
+
+  return items.map(({ label, pct, resets }) => {
+    const color = pct > 80 ? "#ef4444" : pct > 50 ? "#f59e0b" : "#10b981";
+    const resetTime = resets ? new Date(resets).toLocaleString() : "";
+    return `
+      <div class="flex items-center gap-1" title="${label} usage: ${pct.toFixed(1)}%${resetTime ? ' — resets ' + resetTime : ''}">
+        <span class="text-xs text-gray-500">${label}</span>
+        <div style="width: 48px; height: 6px; background: #1e1e2e; border-radius: 3px; overflow: hidden;">
+          <div style="width: ${Math.min(pct, 100)}%; height: 100%; background: ${color}; border-radius: 3px; transition: width 0.3s;"></div>
+        </div>
+        <span class="text-xs text-gray-500">${Math.round(pct)}%</span>
+      </div>
+    `;
+  }).join("");
+}
+
+// Refresh usage every 60s
+setInterval(fetchUsage, 60000);
 
 // ── Init ──
 showDirectoryPicker();

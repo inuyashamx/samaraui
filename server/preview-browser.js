@@ -20,8 +20,10 @@ class PreviewBrowser {
         "--app=" + appUrl,
         "--start-maximized",
         "--disable-extensions",
+        "--lang=en",
+        "--disable-features=TranslateUI",
       ],
-      ignoreDefaultArgs: ["--enable-automation"],
+      ignoreDefaultArgs: ["--enable-automation", "--no-sandbox"],
     });
 
     // --app= creates the page automatically

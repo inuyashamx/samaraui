@@ -5,7 +5,7 @@ import https from "https";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
-import { readdirSync, statSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import AgentManager from "./agent-manager.js";
 import PreviewBrowser from "./preview-browser.js";
@@ -73,6 +73,41 @@ export async function startServer({ port, cwd }) {
     if (agentManager) agentManager.setPreviewBaseUrl(previewTarget);
     console.log(`  Preview target set: ${previewTarget}`);
     res.json({ ok: true, url: previewTarget });
+  });
+
+  // ── Usage endpoint ──
+  let usageCache = { data: null, fetchedAt: 0 };
+
+  app.get("/api/usage", async (req, res) => {
+    // Return cache if less than 30s old
+    if (usageCache.data && Date.now() - usageCache.fetchedAt < 30000) {
+      return res.json(usageCache.data);
+    }
+
+    try {
+      const credsPath = join(homedir(), ".claude", ".credentials.json");
+      const creds = JSON.parse(readFileSync(credsPath, "utf8"));
+      const token = creds?.claudeAiOauth?.accessToken;
+      if (!token) return res.json({ error: "No OAuth token found" });
+
+      const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "anthropic-beta": "oauth-2025-04-20",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return res.json({ error: `API returned ${response.status}` });
+      }
+
+      const data = await response.json();
+      usageCache = { data, fetchedAt: Date.now() };
+      res.json(data);
+    } catch (err) {
+      res.json({ error: err.message });
+    }
   });
 
   app.post("/api/set-cwd", (req, res) => {
