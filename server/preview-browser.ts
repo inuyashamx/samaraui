@@ -1,7 +1,7 @@
 import { chromium, BrowserContext, Page, Frame } from "playwright";
-import { mkdtempSync } from "fs";
+import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { homedir } from "os";
 
 class PreviewBrowser {
   context: BrowserContext | null;
@@ -13,7 +13,9 @@ class PreviewBrowser {
   }
 
   async launch(appUrl: string): Promise<void> {
-    const userDataDir = mkdtempSync(join(tmpdir(), "claude-ui-"));
+    // Persistent profile so localStorage, cache, cookies survive restarts
+    const userDataDir = join(homedir(), ".samara-ui", "browser-profile");
+    if (!existsSync(userDataDir)) mkdirSync(userDataDir, { recursive: true });
 
     this.context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
