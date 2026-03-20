@@ -195,8 +195,8 @@ export default function MenuBar() {
           activeTabId && updateTab(activeTabId, { model })
         ),
       },
-      disabled("Max Turns"),
-      disabled("Max Budget"),
+      { label: "Max Turns", action: () => { togglePanel("settings"); setActiveMenu(null); } },
+      { label: "Max Budget", action: () => { togglePanel("settings"); setActiveMenu(null); } },
       {
         label: "Permission Mode",
         submenu: makePermSubmenu(
@@ -205,7 +205,7 @@ export default function MenuBar() {
         ),
       },
       { label: "", separator: true },
-      disabled("System Prompt Override..."),
+      { label: "System Prompt Override...", action: () => { togglePanel("settings"); setActiveMenu(null); } },
       {
         label: "Interrupt Agent",
         shortcut: "Esc",
@@ -292,7 +292,7 @@ export default function MenuBar() {
         ),
       },
       { label: "", separator: true },
-      disabled("General"),
+      { label: "General", action: () => { togglePanel("settings"); setActiveMenu(null); } },
       disabled("API Key / Auth"),
       disabled("Proxy Settings"),
       disabled("Preview Server Config"),
