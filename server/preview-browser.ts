@@ -69,7 +69,9 @@ class PreviewBrowser {
       return null;
     }
 
-    const buffer = await iframeEl.screenshot({ type: "png" });
+    // Capture as JPEG at reduced size to minimize token usage
+    // Claude processes images at max 1568px, so 1200px wide is plenty
+    const buffer = await iframeEl.screenshot({ type: "jpeg", quality: 80, scale: "css" });
 
     // Restore hidden state
     if (wasHidden) {

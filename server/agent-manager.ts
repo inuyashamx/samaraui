@@ -109,7 +109,7 @@ class AgentManager {
               content: [{
                 type: "image",
                 data,
-                mimeType: "image/png",
+                mimeType: "image/jpeg",
               }],
             };
           }
