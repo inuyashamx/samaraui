@@ -1,7 +1,7 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --import tsx/esm
 
 import { Command } from "commander";
-import { startServer } from "../server/index.js";
+import { startServer } from "../server/index.ts";
 
 const program = new Command();
 
