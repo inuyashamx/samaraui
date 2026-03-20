@@ -94,6 +94,13 @@ export function useSocket() {
       s.updateTab(agentId, { previewRoute: route });
     });
 
+    // Agent set a new preview URL
+    socket.on("preview:set-url" as any, ({ agentId, url }: { agentId: string; url: string }) => {
+      const s = useAppStore.getState();
+      s.updateTab(agentId, { previewUrl: url, previewRoute: "/" });
+      setPreviewTarget(url);
+    });
+
     socket.on("preview:refresh", () => {
       // Handled by PreviewPanel component via store reactivity
     });

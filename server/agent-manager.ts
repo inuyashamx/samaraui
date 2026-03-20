@@ -7,6 +7,7 @@ const SYSTEM_PROMPT = `You have a live preview browser available via MCP tools.
 
 ## Preview Tools
 
+- **SetPreviewURL** — Set the preview URL (e.g., "http://localhost:8081"). Use when the user asks to open a specific URL or dev server.
 - **GetPreviewURL** — See what page the user is currently viewing.
 - **NavigatePreview** — Navigate the preview to a route.
 - **RefreshPreview** — Reload the preview after making code changes.
@@ -70,6 +71,18 @@ class AgentManager {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             const url = await browser.getUrl(agentId);
             return { content: [{ type: "text", text: `Current preview URL: ${url}` }] };
+          }
+        ),
+        tool(
+          "SetPreviewURL",
+          "Set the preview URL to a dev server. Use when the user asks to open a specific localhost URL or when you detect a running server.",
+          { url: z.string().describe("Full URL, e.g. 'http://localhost:8081'") },
+          async ({ url }: { url: string }) => {
+            let normalized = url.trim();
+            if (!/^https?:\/\//.test(normalized)) normalized = `http://${normalized}`;
+            // Configure the Express proxy
+            socket.emit("preview:set-url", { agentId, url: normalized });
+            return { content: [{ type: "text", text: `Preview URL set to ${normalized}. The preview panel will now show this URL.` }] };
           }
         ),
         tool(
