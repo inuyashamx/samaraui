@@ -1,3 +1,14 @@
+import { useAppStore } from "@/store/appStore";
+import { useSocket } from "@/hooks/useSocket";
+import { useAutoSave } from "@/hooks/useAutoSave";
+import DirectoryPicker from "@/components/DirectoryPicker";
+import MainUI from "@/components/MainUI";
+
 export default function App() {
-  return <div className="h-full flex items-center justify-center text-gray-500">Samara UI loading...</div>;
+  const ready = useAppStore((s) => s.ready);
+
+  useSocket();
+  useAutoSave();
+
+  return ready ? <MainUI /> : <DirectoryPicker />;
 }
