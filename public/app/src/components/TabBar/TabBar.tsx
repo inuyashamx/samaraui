@@ -1,5 +1,6 @@
 import { useAppStore } from "@/store/appStore";
 import { getSocket } from "@/lib/socket";
+import { setPreviewTarget } from "@/lib/api";
 import Tab from "./Tab";
 import UsageBar from "@/components/Common/UsageBar";
 
@@ -33,7 +34,13 @@ export default function TabBar() {
           key={tab.id}
           tab={tab}
           isActive={tab.id === activeTabId}
-          onSelect={() => setActiveTab(tab.id)}
+          onSelect={() => {
+            setActiveTab(tab.id);
+            // Switch the Express proxy to this tab's preview URL
+            if (tab.previewUrl) {
+              setPreviewTarget(tab.previewUrl);
+            }
+          }}
           onClose={() => handleClose(tab.id)}
         />
       ))}
