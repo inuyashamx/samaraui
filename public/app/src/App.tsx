@@ -20,9 +20,9 @@ export default function App() {
 
       // Restore saved session
       const saved = await loadState(cwd);
-      if (saved?.state?.tabs?.length) {
-        store.loadFromSaved(saved.state);
-        const restoredTab = saved.state.tabs.find((t: any) => t.previewUrl);
+      if (saved?.tabs?.length) {
+        store.loadFromSaved(saved);
+        const restoredTab = saved.tabs.find((t: any) => t.previewUrl);
         if (restoredTab?.previewUrl) {
           setPreviewTarget(restoredTab.previewUrl);
         }
