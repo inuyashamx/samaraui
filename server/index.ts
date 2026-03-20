@@ -18,9 +18,12 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   const server = createServer(app);
   const io = new Server(server, { cors: { origin: "*" } });
 
-  let agentManager: AgentManager | null = null;
+  const resolvedCwd = resolve(cwd);
+  let agentManager: AgentManager | null = new AgentManager(resolvedCwd);
+  let currentCwd = resolvedCwd;
   let previewTarget: string | null = null;
   const previewBrowser = new PreviewBrowser();
+  agentManager.setPreviewBrowser(previewBrowser);
 
   app.use(express.json({ limit: "50mb" }));
 
@@ -49,6 +52,10 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   });
 
   // ── API routes ──
+  app.get("/api/init", (req: Request, res: Response) => {
+    res.json({ cwd: currentCwd });
+  });
+
   app.get("/api/check-dir", (req: Request, res: Response) => {
     const dir = req.query.path as string;
     if (!dir) return res.json({ valid: false });
@@ -167,6 +174,7 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     const { cwd: newCwd } = req.body;
     if (!newCwd) return res.status(400).json({ error: "cwd required" });
     const resolved = resolve(newCwd);
+    currentCwd = resolved;
     agentManager = new AgentManager(resolved);
     agentManager.setPreviewBrowser(previewBrowser);
     console.log(`  Working directory set: ${resolved}`);

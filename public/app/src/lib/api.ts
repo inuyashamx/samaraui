@@ -1,5 +1,10 @@
 const BASE = "";
 
+export async function getInit(): Promise<{ cwd: string }> {
+  const res = await fetch(`${BASE}/api/init`);
+  return res.json();
+}
+
 export async function checkDir(path: string): Promise<{ valid: boolean; path: string }> {
   const res = await fetch(`${BASE}/api/check-dir?path=${encodeURIComponent(path)}`);
   return res.json();
