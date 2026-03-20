@@ -322,6 +322,7 @@ export default function MenuBar() {
         ref={barRef}
         className="flex items-center bg-surface border-b border-border shrink-0 select-none"
       >
+        <img src="/_app/logo.png" alt="Samara" className="w-4 h-4 ml-2 mr-1" />
         {menuKeys.map((key) => (
           <div key={key} className="relative">
             <button
@@ -348,7 +349,7 @@ export default function MenuBar() {
       {/* About Modal */}
       <Modal open={showAbout} onClose={() => setShowAbout(false)} title="About Samara UI">
         <div className="text-center space-y-2">
-          <div className="text-accent text-2xl">&#9672;</div>
+          <img src="/_app/logo.png" alt="Samara" className="w-10 h-10 mx-auto" />
           <div className="text-white font-medium">Samara UI v0.1.0</div>
           <div className="text-gray-400 text-xs">Web UI for Claude Code</div>
           <a
