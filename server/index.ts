@@ -1,8 +1,8 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import http from "http";
 import https from "https";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
@@ -13,13 +13,13 @@ import PreviewBrowser from "./preview-browser.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export async function startServer({ port, cwd }) {
+export async function startServer({ port, cwd }: { port: number; cwd: string }): Promise<{ server: any; launchBrowser: (url: string) => Promise<void> }> {
   const app = express();
   const server = createServer(app);
   const io = new Server(server, { cors: { origin: "*" } });
 
-  let agentManager = null;
-  let previewTarget = null;
+  let agentManager: AgentManager | null = null;
+  let previewTarget: string | null = null;
   const previewBrowser = new PreviewBrowser();
 
   app.use(express.json({ limit: "50mb" }));
@@ -28,14 +28,14 @@ export async function startServer({ port, cwd }) {
   app.use("/_app", express.static(join(__dirname, "..", "public")));
 
   // Root: serve UI only if no preview target is active
-  app.get("/", (req, res, next) => {
+  app.get("/", (req: Request, res: Response, next: NextFunction) => {
     if (previewTarget) return next(); // let proxy handle it
     res.sendFile(join(__dirname, "..", "public", "index.html"));
   });
 
   // ── API routes ──
-  app.get("/api/check-dir", (req, res) => {
-    const dir = req.query.path;
+  app.get("/api/check-dir", (req: Request, res: Response) => {
+    const dir = req.query.path as string;
     if (!dir) return res.json({ valid: false });
     try {
       const resolved = resolve(dir);
@@ -46,16 +46,16 @@ export async function startServer({ port, cwd }) {
     }
   });
 
-  app.get("/api/home", (req, res) => {
+  app.get("/api/home", (req: Request, res: Response) => {
     const home = homedir();
     const desktop = join(home, "Desktop");
     const onedrive = join(home, "OneDrive", "Escritorio");
     const docs = join(home, "Documents");
-    const suggestions = [];
+    const suggestions: string[] = [];
     for (const p of [home, desktop, onedrive, docs]) {
       try { if (statSync(p).isDirectory()) suggestions.push(p); } catch {}
     }
-    const projectDirs = [];
+    const projectDirs: { name: string; path: string }[] = [];
     for (const base of [desktop, onedrive, join(onedrive, "Projects")]) {
       try {
         const entries = readdirSync(base, { withFileTypes: true });
@@ -69,8 +69,8 @@ export async function startServer({ port, cwd }) {
     res.json({ home, suggestions, projects: projectDirs });
   });
 
-  app.post("/api/set-preview", (req, res) => {
-    let url = (req.body.url || "").trim();
+  app.post("/api/set-preview", (req: Request, res: Response) => {
+    let url = (req.body.url || "").trim() as string;
     if (url && !/^https?:\/\//.test(url)) {
       url = "http://" + url;
     }
@@ -81,9 +81,9 @@ export async function startServer({ port, cwd }) {
   });
 
   // ── Usage endpoint ──
-  let usageCache = { data: null, fetchedAt: 0 };
+  let usageCache: { data: any; fetchedAt: number } = { data: null, fetchedAt: 0 };
 
-  app.get("/api/usage", async (req, res) => {
+  app.get("/api/usage", async (req: Request, res: Response) => {
     // Return cache if less than 30s old
     if (usageCache.data && Date.now() - usageCache.fetchedAt < 30000) {
       return res.json(usageCache.data);
@@ -110,7 +110,7 @@ export async function startServer({ port, cwd }) {
       const data = await response.json();
       usageCache = { data, fetchedAt: Date.now() };
       res.json(data);
-    } catch (err) {
+    } catch (err: any) {
       res.json({ error: err.message });
     }
   });
@@ -118,13 +118,13 @@ export async function startServer({ port, cwd }) {
   // ── State persistence ──
   const stateDir = join(homedir(), ".samara-ui", "sessions");
 
-  function stateFile(dir) {
+  function stateFile(dir: string): string {
     const hash = createHash("md5").update(dir).digest("hex").slice(0, 12);
     return join(stateDir, `${hash}.json`);
   }
 
-  app.get("/api/state", (req, res) => {
-    const dir = req.query.cwd;
+  app.get("/api/state", (req: Request, res: Response) => {
+    const dir = req.query.cwd as string;
     if (!dir) return res.json({ error: "cwd required" });
     try {
       const path = stateFile(dir);
@@ -136,19 +136,19 @@ export async function startServer({ port, cwd }) {
     }
   });
 
-  app.post("/api/state", (req, res) => {
+  app.post("/api/state", (req: Request, res: Response) => {
     const { cwd: dir, state } = req.body;
     if (!dir || !state) return res.status(400).json({ error: "cwd and state required" });
     try {
       mkdirSync(stateDir, { recursive: true });
       writeFileSync(stateFile(dir), JSON.stringify(state, null, 2));
       res.json({ ok: true });
-    } catch (err) {
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post("/api/set-cwd", (req, res) => {
+  app.post("/api/set-cwd", (req: Request, res: Response) => {
     const { cwd: newCwd } = req.body;
     if (!newCwd) return res.status(400).json({ error: "cwd required" });
     const resolved = resolve(newCwd);
@@ -159,14 +159,14 @@ export async function startServer({ port, cwd }) {
   });
 
   // ── Reverse proxy: everything not /_app/ or /api/ goes to preview target ──
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     // Skip if no preview target or if it's a socket.io/api/_app request
     if (!previewTarget || req.path.startsWith("/_app") || req.path.startsWith("/api") || req.path.startsWith("/socket.io")) {
       return next();
     }
 
     const targetUrl = previewTarget + req.url;
-    let url;
+    let url: URL;
     try {
       url = new URL(targetUrl);
     } catch {
@@ -178,14 +178,14 @@ export async function startServer({ port, cwd }) {
       method: req.method,
       headers: { ...req.headers, host: url.host },
     }, (proxyRes) => {
-      const headers = { ...proxyRes.headers };
+      const headers: any = { ...proxyRes.headers };
       delete headers["x-frame-options"];
       delete headers["content-security-policy"];
-      res.writeHead(proxyRes.statusCode, headers);
+      res.writeHead(proxyRes.statusCode!, headers);
       proxyRes.pipe(res);
     });
 
-    proxyReq.on("error", (err) => {
+    proxyReq.on("error", (err: Error) => {
       res.status(502).send("Preview server not reachable: " + err.message);
     });
 
@@ -193,10 +193,10 @@ export async function startServer({ port, cwd }) {
   });
 
   // ── Socket.io ──
-  io.on("connection", (socket) => {
+  io.on("connection", (socket: Socket) => {
     console.log("  Client connected");
 
-    socket.on("agent:start", ({ agentId, prompt }) => {
+    socket.on("agent:start", ({ agentId, prompt }: { agentId: string; prompt: string }) => {
       if (!agentManager) {
         socket.emit("agent:error", { agentId, error: "No working directory selected" });
         return;
@@ -205,7 +205,7 @@ export async function startServer({ port, cwd }) {
       agentManager.runAgent(agentId, prompt, socket);
     });
 
-    socket.on("agent:message", ({ agentId, prompt }) => {
+    socket.on("agent:message", ({ agentId, prompt }: { agentId: string; prompt: string }) => {
       if (!agentManager) {
         socket.emit("agent:error", { agentId, error: "No working directory selected" });
         return;
@@ -214,7 +214,7 @@ export async function startServer({ port, cwd }) {
       agentManager.runAgent(agentId, prompt, socket, true);
     });
 
-    socket.on("agent:interrupt", ({ agentId }) => {
+    socket.on("agent:interrupt", ({ agentId }: { agentId: string }) => {
       console.log(`  Agent ${agentId} interrupted`);
       agentManager?.interrupt(agentId);
     });
@@ -224,13 +224,13 @@ export async function startServer({ port, cwd }) {
     });
   });
 
-  await new Promise((res) => {
+  await new Promise<void>((res) => {
     server.listen(port, () => res());
   });
 
   return {
     server,
-    launchBrowser: async (url) => {
+    launchBrowser: async (url: string): Promise<void> => {
       await previewBrowser.launch(url);
     },
   };

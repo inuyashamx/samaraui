@@ -2,14 +2,15 @@
   "name": "samara-ui",
   "version": "0.1.0",
   "description": "A web UI for Claude Code - chat with agents and preview their work in real-time",
-  "main": "server/index.js",
+  "main": "server/index.ts",
   "type": "module",
   "bin": {
     "samara-ui": "./bin/cli.js"
   },
   "scripts": {
-    "start": "node bin/cli.js",
-    "dev": "node bin/cli.js --dev"
+    "dev": "concurrently \"tsx server/index.ts\" \"cd public/app && npx vite\"",
+    "build": "cd public/app && npm run build",
+    "start": "tsx server/index.ts"
   },
   "keywords": [
     "claude",
@@ -20,6 +21,12 @@
   ],
   "author": "",
   "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "@types/express": "^5.0.0"
+  },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
     "commander": "^13.1.0",

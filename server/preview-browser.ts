@@ -1,15 +1,18 @@
-import { chromium } from "playwright";
+import { chromium, BrowserContext, Page, Frame } from "playwright";
 import { mkdtempSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
 class PreviewBrowser {
+  context: BrowserContext | null;
+  page: Page | null;
+
   constructor() {
     this.context = null;
     this.page = null;
   }
 
-  async launch(appUrl) {
+  async launch(appUrl: string): Promise<void> {
     const userDataDir = mkdtempSync(join(tmpdir(), "claude-ui-"));
 
     this.context = await chromium.launchPersistentContext(userDataDir, {
@@ -35,17 +38,17 @@ class PreviewBrowser {
     await this.page.waitForLoadState("domcontentloaded");
   }
 
-  async _getPreviewFrame(agentId) {
+  async _getPreviewFrame(agentId: string): Promise<Frame | null> {
     if (!this.page) return null;
     const iframeEl = await this.page.$(`#preview-frame-${agentId}`);
     if (!iframeEl) return null;
     return await iframeEl.contentFrame();
   }
 
-  async screenshot(agentId) {
+  async screenshot(agentId: string): Promise<string | null> {
     if (!this.page) return null;
     // Temporarily show the tab panel if hidden so Playwright can capture it
-    const wasHidden = await this.page.evaluate((id) => {
+    const wasHidden = await this.page.evaluate((id: string) => {
       const panel = document.getElementById(`tab-panel-${id}`);
       if (!panel) return false;
       if (panel.style.display === "none") {
@@ -58,7 +61,7 @@ class PreviewBrowser {
     const iframeEl = await this.page.$(`#preview-frame-${agentId}`);
     if (!iframeEl) {
       if (wasHidden) {
-        await this.page.evaluate((id) => {
+        await this.page.evaluate((id: string) => {
           const panel = document.getElementById(`tab-panel-${id}`);
           if (panel) panel.style.display = "none";
         }, agentId);
@@ -70,7 +73,7 @@ class PreviewBrowser {
 
     // Restore hidden state
     if (wasHidden) {
-      await this.page.evaluate((id) => {
+      await this.page.evaluate((id: string) => {
         const panel = document.getElementById(`tab-panel-${id}`);
         if (panel) panel.style.display = "none";
       }, agentId);
@@ -79,7 +82,7 @@ class PreviewBrowser {
     return buffer.toString("base64");
   }
 
-  async navigate(agentId, route) {
+  async navigate(agentId: string, route: string): Promise<void> {
     const frame = await this._getPreviewFrame(agentId);
     if (frame) {
       await frame.goto(frame.url().replace(/\/[^/]*$/, "") + route, {
@@ -87,63 +90,63 @@ class PreviewBrowser {
         timeout: 10000,
       }).catch(() => {});
     }
-    await this.page.fill(`#preview-address-${agentId}`, route).catch(() => {});
+    await this.page!.fill(`#preview-address-${agentId}`, route).catch(() => {});
   }
 
-  async refresh(agentId) {
+  async refresh(agentId: string): Promise<void> {
     const frame = await this._getPreviewFrame(agentId);
     if (frame) {
       await frame.evaluate(() => window.location.reload());
-      await this.page.waitForTimeout(1500);
+      await this.page!.waitForTimeout(1500);
     }
   }
 
-  async click(agentId, selector) {
+  async click(agentId: string, selector: string): Promise<string> {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "No preview frame found for this agent";
     try {
       await frame.click(selector, { timeout: 5000 });
       return `Clicked: ${selector}`;
-    } catch (err) {
+    } catch (err: any) {
       return `Could not click "${selector}": ${err.message}`;
     }
   }
 
-  async type(agentId, selector, text) {
+  async type(agentId: string, selector: string, text: string): Promise<string> {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "No preview frame found for this agent";
     try {
       await frame.fill(selector, text, { timeout: 5000 });
       return `Typed "${text}" into ${selector}`;
-    } catch (err) {
+    } catch (err: any) {
       return `Could not type into "${selector}": ${err.message}`;
     }
   }
 
-  async inspect(agentId, selector) {
+  async inspect(agentId: string, selector: string): Promise<string> {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "No preview frame found for this agent";
     try {
-      const result = await frame.evaluate((sel) => {
+      const result = await frame.evaluate((sel: string) => {
         const els = document.querySelectorAll(sel);
         if (els.length === 0) return { found: 0 };
         const info = Array.from(els).slice(0, 10).map((el) => ({
           tag: el.tagName.toLowerCase(),
-          id: el.id || undefined,
-          classes: el.className || undefined,
+          id: (el as HTMLElement).id || undefined,
+          classes: (el as HTMLElement).className || undefined,
           text: el.textContent?.slice(0, 100)?.trim() || undefined,
-          visible: el.offsetParent !== null,
+          visible: (el as HTMLElement).offsetParent !== null,
           children: el.children.length,
         }));
         return { found: els.length, elements: info };
       }, selector);
       return JSON.stringify(result, null, 2);
-    } catch (err) {
+    } catch (err: any) {
       return `Inspect failed: ${err.message}`;
     }
   }
 
-  async getUrl(agentId) {
+  async getUrl(agentId: string): Promise<string> {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "/";
     try {
@@ -153,21 +156,21 @@ class PreviewBrowser {
     }
   }
 
-  async getPageContent(agentId, selector) {
+  async getPageContent(agentId: string, selector?: string): Promise<string> {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "No preview frame found for this agent";
     try {
-      const html = await frame.evaluate((sel) => {
+      const html = await frame.evaluate((sel: string | null) => {
         const el = sel ? document.querySelector(sel) : document.body;
         return el ? el.innerHTML.slice(0, 5000) : "Element not found";
       }, selector || null);
       return html;
-    } catch (err) {
+    } catch (err: any) {
       return `Failed: ${err.message}`;
     }
   }
 
-  async close() {
+  async close(): Promise<void> {
     if (this.context) {
       await this.context.close();
       this.context = null;

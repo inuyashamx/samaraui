@@ -1,9 +1,9 @@
 import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { readdirSync, readFileSync, existsSync } from "fs";
-import { join, basename } from "path";
+import type { Socket } from "socket.io";
+import type PreviewBrowser from "./preview-browser.js";
 
-const SYSTEM_PROMPT = `You are a developer assistant. You have a live preview browser and project skills available.
+const SYSTEM_PROMPT = `You have a live preview browser available via MCP tools.
 
 ## Preview Tools
 
@@ -16,40 +16,46 @@ const SYSTEM_PROMPT = `You are a developer assistant. You have a live preview br
 - **ClickElement** — Click an element in the preview.
 - **TypeInElement** — Type text into an input/textarea.
 
-## Skills
-
-- **ListSkills** — List available project skills (context documents with patterns, API docs, schemas, etc.)
-- **LoadSkill** — Load a skill by name to get its full content. ALWAYS load relevant skills before working on unfamiliar code.
-
 ## Workflow
 
-1. **CONTEXT** — Use ListSkills to see what knowledge is available. Load relevant skills. Use GetPreviewURL/ScreenshotPreview to see the current state.
+1. **CONTEXT** — Use GetPreviewURL/ScreenshotPreview to see the current state.
 2. **ANALYZE** — Find the relevant code. Read it.
 3. **IMPLEMENT** — Make changes with Edit/Write. Don't refresh during implementation.
 4. **TEST** — RefreshPreview once after ALL edits, navigate to the page, ScreenshotPreview to verify.
 
 ## Important
 
-- Load skills before working on unfamiliar patterns or APIs.
 - NEVER refresh during implementation. Only RefreshPreview ONCE at the end.
 - Be concise.`;
 
+interface AgentState {
+  status: string;
+  sessionId?: string;
+  abortController?: AbortController;
+}
+
 class AgentManager {
-  constructor(cwd) {
+  cwd: string;
+  agents: Map<string, AgentState>;
+  previewBrowser: PreviewBrowser | null;
+  previewBaseUrl: string | null;
+
+  constructor(cwd: string) {
     this.cwd = cwd;
     this.agents = new Map();
     this.previewBrowser = null;
+    this.previewBaseUrl = null;
   }
 
-  setPreviewBrowser(browser) {
+  setPreviewBrowser(browser: PreviewBrowser): void {
     this.previewBrowser = browser;
   }
 
-  setPreviewBaseUrl(url) {
+  setPreviewBaseUrl(url: string | null): void {
     this.previewBaseUrl = url;
   }
 
-  _createPreviewServer(socket, agentId) {
+  _createPreviewServer(socket: Socket, agentId: string): any {
     const browser = this.previewBrowser;
 
     return createSdkMcpServer({
@@ -70,7 +76,7 @@ class AgentManager {
           "NavigatePreview",
           "Navigate the preview to a specific route. Use to show the user which module you're working on.",
           { route: z.string().describe("Route to navigate to, e.g. '/' or '/modulo/clientes'") },
-          async ({ route }) => {
+          async ({ route }: { route: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             // Also emit socket event to update the address bar in UI
             socket.emit("preview:navigate", { agentId, route });
@@ -112,7 +118,7 @@ class AgentManager {
           "InspectElement",
           "Query DOM elements in the preview by CSS selector. Returns info about matching elements (tag, classes, text, visibility).",
           { selector: z.string().describe("CSS selector, e.g. '.my-class', '#my-id', 'paper-button'") },
-          async ({ selector }) => {
+          async ({ selector }: { selector: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             const result = await browser.inspect(agentId, selector);
             return { content: [{ type: "text", text: result }] };
@@ -122,7 +128,7 @@ class AgentManager {
           "GetPageContent",
           "Get the innerHTML of an element or the page body from the preview. Useful to check rendered DOM state.",
           { selector: z.string().optional().describe("CSS selector. Omit for full body.") },
-          async ({ selector }) => {
+          async ({ selector }: { selector?: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             const html = await browser.getPageContent(agentId, selector);
             return { content: [{ type: "text", text: html }] };
@@ -132,7 +138,7 @@ class AgentManager {
           "ClickElement",
           "Click an element in the preview by CSS selector. Use to test interactions.",
           { selector: z.string().describe("CSS selector of element to click") },
-          async ({ selector }) => {
+          async ({ selector }: { selector: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             const result = await browser.click(agentId, selector);
             return { content: [{ type: "text", text: result }] };
@@ -145,68 +151,17 @@ class AgentManager {
             selector: z.string().describe("CSS selector of the input element"),
             text: z.string().describe("Text to type"),
           },
-          async ({ selector, text }) => {
+          async ({ selector, text }: { selector: string; text: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
             const result = await browser.type(agentId, selector, text);
             return { content: [{ type: "text", text: result }] };
-          }
-        ),
-        tool(
-          "ListSkills",
-          "List available project skills. Skills contain patterns, API docs, schemas, and other context. Always check this first when working on unfamiliar code.",
-          {},
-          async () => {
-            const skills = this._findSkills();
-            if (skills.length === 0) {
-              return { content: [{ type: "text", text: "No skills found in this project." }] };
-            }
-            const list = skills.map((s) => `- **${s.name}**: ${s.path}`).join("\n");
-            return { content: [{ type: "text", text: `Available skills:\n${list}\n\nUse LoadSkill to read any of these.` }] };
-          }
-        ),
-        tool(
-          "LoadSkill",
-          "Load a project skill by name. Returns the full skill content with patterns, API docs, schemas, etc.",
-          { name: z.string().describe("Skill name, e.g. 'sacs-backend-api', 'sacs-polymer-patterns'") },
-          async ({ name }) => {
-            const skills = this._findSkills();
-            const skill = skills.find((s) => s.name === name || s.name.includes(name));
-            if (!skill) {
-              const available = skills.map((s) => s.name).join(", ");
-              return { content: [{ type: "text", text: `Skill "${name}" not found. Available: ${available || "none"}` }] };
-            }
-            try {
-              const content = readFileSync(skill.path, "utf8");
-              return { content: [{ type: "text", text: content }] };
-            } catch (err) {
-              return { content: [{ type: "text", text: `Error reading skill: ${err.message}` }] };
-            }
           }
         ),
       ],
     });
   }
 
-  _findSkills() {
-    const skills = [];
-    // Check .claude/skills/ in the working directory
-    const skillsDir = join(this.cwd, ".claude", "skills");
-    if (existsSync(skillsDir)) {
-      try {
-        for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
-          if (entry.isDirectory()) {
-            const skillFile = join(skillsDir, entry.name, "SKILL.md");
-            if (existsSync(skillFile)) {
-              skills.push({ name: entry.name, path: skillFile });
-            }
-          }
-        }
-      } catch {}
-    }
-    return skills;
-  }
-
-  async runAgent(agentId, prompt, socket, resume = false) {
+  async runAgent(agentId: string, prompt: string, socket: Socket, resume: boolean = false): Promise<void> {
     const existing = this.agents.get(agentId);
     const sessionId = existing?.sessionId;
 
@@ -219,7 +174,7 @@ class AgentManager {
 
     const previewServer = this._createPreviewServer(socket, agentId);
 
-    const options = {
+    const options: any = {
       cwd: this.cwd,
       abortController,
       systemPrompt: {
@@ -227,6 +182,7 @@ class AgentManager {
         preset: "claude_code",
         append: SYSTEM_PROMPT,
       },
+      settingSources: ["project", "user", "local"],
       allowedTools: [
         "Read", "Write", "Edit", "Bash", "Glob", "Grep",
         "WebSearch", "WebFetch", "Agent"
@@ -244,25 +200,25 @@ class AgentManager {
 
     try {
       for await (const message of query({ prompt, options })) {
-        switch (message.type) {
+        switch ((message as any).type) {
           case "system": {
-            if (message.subtype === "init") {
+            if ((message as any).subtype === "init") {
               this.agents.set(agentId, {
                 ...this.agents.get(agentId),
-                sessionId: message.session_id,
+                sessionId: (message as any).session_id,
               });
               socket.emit("agent:init", {
                 agentId,
-                sessionId: message.session_id,
-                model: message.model,
-                tools: message.tools,
+                sessionId: (message as any).session_id,
+                model: (message as any).model,
+                tools: (message as any).tools,
               });
             }
             break;
           }
 
           case "assistant": {
-            const content = message.message?.content || [];
+            const content = (message as any).message?.content || [];
             for (const block of content) {
               if (block.type === "text") {
                 socket.emit("agent:text", { agentId, text: block.text });
@@ -280,8 +236,8 @@ class AgentManager {
           }
 
           case "user": {
-            if (message.tool_use_result !== undefined) {
-              const result = message.tool_use_result;
+            if ((message as any).tool_use_result !== undefined) {
+              const result = (message as any).tool_use_result;
               const text = typeof result === "string"
                 ? result
                 : JSON.stringify(result, null, 2);
@@ -300,35 +256,35 @@ class AgentManager {
           case "tool_progress": {
             socket.emit("agent:tool_progress", {
               agentId,
-              toolUseId: message.tool_use_id,
-              tool: message.tool_name,
-              elapsed: message.elapsed_time_seconds,
+              toolUseId: (message as any).tool_use_id,
+              tool: (message as any).tool_name,
+              elapsed: (message as any).elapsed_time_seconds,
             });
             break;
           }
 
           case "result": {
-            const isSuccess = message.subtype === "success";
+            const isSuccess = (message as any).subtype === "success";
             socket.emit("agent:result", {
               agentId,
-              result: isSuccess ? message.result : null,
-              errors: isSuccess ? null : message.errors,
-              subtype: message.subtype,
-              cost: message.total_cost_usd,
-              turns: message.num_turns,
-              duration: message.duration_ms,
-              sessionId: message.session_id,
+              result: isSuccess ? (message as any).result : null,
+              errors: isSuccess ? null : (message as any).errors,
+              subtype: (message as any).subtype,
+              cost: (message as any).total_cost_usd,
+              turns: (message as any).num_turns,
+              duration: (message as any).duration_ms,
+              sessionId: (message as any).session_id,
             });
             this.agents.set(agentId, {
               ...this.agents.get(agentId),
               status: isSuccess ? "idle" : "error",
-              sessionId: message.session_id,
+              sessionId: (message as any).session_id,
             });
             break;
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       socket.emit("agent:error", { agentId, error: err.message });
       this.agents.set(agentId, {
         ...this.agents.get(agentId),
@@ -337,14 +293,14 @@ class AgentManager {
     }
   }
 
-  interrupt(agentId) {
+  interrupt(agentId: string): void {
     const agent = this.agents.get(agentId);
     if (agent?.abortController) {
       agent.abortController.abort();
     }
   }
 
-  getStatus(agentId) {
+  getStatus(agentId: string): AgentState {
     return this.agents.get(agentId) || { status: "none" };
   }
 }
