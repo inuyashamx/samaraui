@@ -35,6 +35,7 @@ export default function MenuBar() {
   const updateTab = useAppStore((s) => s.updateTab);
   const cwd = useAppStore((s) => s.cwd);
   const getActiveTab = useAppStore((s) => s.getActiveTab);
+  const togglePanel = useAppStore((s) => s.togglePanel);
 
   const [showAbout, setShowAbout] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -121,15 +122,14 @@ export default function MenuBar() {
     ],
     Project: [
       disabled("Project Info"),
-      disabled("CLAUDE.md"),
+      { label: "CLAUDE.md", action: () => { togglePanel("claudeMd"); setActiveMenu(null); } },
       disabled(".claude/settings.json"),
       { label: "", separator: true },
-      disabled("MCP Servers"),
-      disabled("Skills"),
+      { label: "MCP Servers", action: () => { togglePanel("mcpServers"); setActiveMenu(null); } },
+      { label: "Skills", action: () => { togglePanel("skills"); setActiveMenu(null); } },
       disabled("Hooks"),
       { label: "", separator: true },
-      disabled("Git Status"),
-      disabled("Git Log"),
+      { label: "Git Status", action: () => { togglePanel("git"); setActiveMenu(null); } },
       { label: "", separator: true },
       {
         label: "Open in Terminal",
@@ -224,12 +224,12 @@ export default function MenuBar() {
         action: () => setLayout("preview"),
       },
       { label: "", separator: true },
-      disabled("Activity Log"),
+      { label: "Activity Log", action: () => { togglePanel("activityLog"); setActiveMenu(null); } },
       disabled("Usage Dashboard"),
     ],
     Tools: [
       disabled("Terminal"),
-      disabled("File Explorer"),
+      { label: "File Explorer", action: () => { togglePanel("fileExplorer"); setActiveMenu(null); } },
       { label: "", separator: true },
       disabled("Screenshot Preview"),
       disabled("Inspect Element"),

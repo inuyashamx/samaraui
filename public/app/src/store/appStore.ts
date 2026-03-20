@@ -34,8 +34,11 @@ interface AppStore {
   // Layout & Menu
   activeMenu: string | null;
   layout: "split" | "chat" | "preview";
+  openPanel: string | null;
   setActiveMenu: (menu: string | null) => void;
   setLayout: (layout: "split" | "chat" | "preview") => void;
+  setOpenPanel: (panel: string | null) => void;
+  togglePanel: (panel: string) => void;
 
   // State persistence
   loadFromSaved: (saved: { tabs: Tab[]; activeTabId: string }) => void;
@@ -153,8 +156,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // Layout & Menu
   activeMenu: null,
   layout: "split",
+  openPanel: null,
   setActiveMenu: (menu) => set({ activeMenu: menu }),
   setLayout: (layout) => set({ layout }),
+  setOpenPanel: (panel) => set({ openPanel: panel }),
+  togglePanel: (panel) => set((s) => ({ openPanel: s.openPanel === panel ? null : panel })),
 
   // State persistence
   loadFromSaved: (saved) => {
