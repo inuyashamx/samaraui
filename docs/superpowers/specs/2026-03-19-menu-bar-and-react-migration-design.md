@@ -28,18 +28,33 @@ Migrate Samara UI from vanilla JS to a Vite + React + Tailwind + TypeScript stac
 - **Vite** - build tool, dev server with HMR
 - **React 19** - UI framework
 - **TypeScript** - type safety
-- **Tailwind CSS v4** - utility-first styling
+- **Tailwind CSS v4** - utility-first styling (CSS-based config via `@theme` in `index.css`, no `tailwind.config` file)
 - **Zustand** - state management
 - **Socket.io-client** - real-time communication
 - **xterm.js** - embedded terminal (Phase 3)
 
 ### Server Stack
 
-- **Express 5** - HTTP server (unchanged)
-- **TypeScript** via tsx runtime
+- **Express 5** - HTTP server (migrated to TypeScript, API unchanged)
+- **TypeScript** via `tsx` runtime
 - **Socket.io** - real-time communication (unchanged)
 - **Playwright** - preview browser automation (unchanged)
 - **@anthropic-ai/claude-agent-sdk** - agent queries (unchanged)
+
+### New Dependencies to Add
+
+**Root package.json (server):**
+- `tsx` - TypeScript execution for server
+- `typescript` - type checking
+- `concurrently` (devDep) - run server + vite in parallel
+
+**Frontend package.json (`public/app/`):**
+- `react`, `react-dom`
+- `zustand`
+- `socket.io-client`
+- `tailwindcss`, `@tailwindcss/vite`
+- `typescript`, `@types/react`, `@types/react-dom`
+- `vite`, `@vitejs/plugin-react`
 
 ### Vite + Express Integration
 
@@ -53,7 +68,7 @@ Migrate Samara UI from vanilla JS to a Vite + React + Tailwind + TypeScript stac
 - Express serves `dist/` as static files at `/_app/`
 - Single port deployment
 
-**Scripts:**
+**Scripts (root package.json):**
 ```json
 {
   "dev": "concurrently \"tsx server/index.ts\" \"cd public/app && vite\"",
@@ -61,6 +76,25 @@ Migrate Samara UI from vanilla JS to a Vite + React + Tailwind + TypeScript stac
   "start": "tsx server/index.ts"
 }
 ```
+
+### Type Sharing Strategy
+
+Shared types between server and client live in a top-level `shared/` directory:
+
+```
+shared/
+  types/
+    agent.ts        # Tab, Message, AgentStatus
+    socket.ts       # Socket event names and payloads
+    settings.ts     # Settings interfaces
+```
+
+Both `tsconfig.json` files (server and client) use path aliases to reference `shared/`:
+```json
+{ "paths": { "@shared/*": ["../../shared/*"] } }
+```
+
+Vite config adds the same alias for bundling.
 
 ---
 
@@ -74,17 +108,13 @@ public/
     index.html
     vite.config.ts
     tsconfig.json
-    tailwind.config.ts
     package.json
     src/
       main.tsx                    # Entry point
       App.tsx                     # Root: MenuBar + TabBar + TabContent
-      index.css                   # Tailwind imports + custom CSS
+      index.css                   # Tailwind v4 @theme config + custom CSS
 
       types/
-        agent.ts                  # Tab, Message, AgentStatus, ToolCall
-        settings.ts               # Settings, MCPServer, Skill, Hook
-        socket.ts                 # Socket event payloads
         menu.ts                   # MenuItem, MenuSection
 
       hooks/
@@ -139,6 +169,16 @@ public/
         constants.ts              # Models, default shortcuts, etc.
 ```
 
+### Shared Types
+
+```
+shared/
+  types/
+    agent.ts                      # Tab, Message, AgentStatus, ToolCall
+    socket.ts                     # Socket event payloads (client & server)
+    settings.ts                   # Settings, MCPServer, Skill, Hook
+```
+
 ### Server
 
 ```
@@ -146,12 +186,77 @@ server/
   index.ts                        # Express + socket.io setup
   agent-manager.ts                # Agent lifecycle + MCP server
   preview-browser.ts              # Playwright preview control
-  types.ts                        # Shared server-side types
+  types.ts                        # Server-only types
+```
+
+---
+
+## Socket.io Events
+
+### Client -> Server
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `agent:start` | `{ agentId, prompt, model?, maxTurns?, maxBudget?, permissionMode? }` | Start agent query. Optional fields override tab defaults. |
+| `agent:message` | `{ agentId, prompt, model?, maxTurns?, maxBudget?, permissionMode? }` | Continue existing session (resume mode) |
+| `agent:interrupt` | `{ agentId }` | Abort running agent |
+
+### Server -> Client
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `agent:init` | `{ agentId, sessionId, model, tools }` | Agent session initialized |
+| `agent:text` | `{ agentId, text }` | Assistant text chunk |
+| `agent:tool_use` | `{ agentId, toolUseId, tool, input }` | Tool invocation started |
+| `agent:tool_result` | `{ agentId, content }` | Tool result (truncated to 2000 chars) |
+| `agent:tool_progress` | `{ agentId, toolUseId, tool, elapsed }` | Tool execution progress |
+| `agent:result` | `{ agentId, result, errors, subtype, cost, turns, duration, sessionId }` | Agent query completed |
+| `agent:error` | `{ agentId, error }` | Agent query failed |
+| `preview:navigate` | `{ agentId, route }` | Agent navigated preview |
+| `preview:refresh` | `{ agentId }` | Agent refreshed preview |
+| `preview:current-url` | `{ url }` | Current preview URL response |
+| `preview:url-update` | `{ agentId, url }` | Preview URL changed |
+
+### Agent-Manager Changes for Per-Tab Settings
+
+The `runAgent` method must accept and forward per-tab options to the SDK `query()` call:
+
+```typescript
+async runAgent(agentId: string, prompt: string, socket: Socket, options: {
+  resume?: boolean
+  model?: string
+  maxTurns?: number
+  maxBudget?: number
+  permissionMode?: 'bypassPermissions' | 'default' | 'acceptEdits'
+}) {
+  const queryOptions = {
+    ...baseOptions,
+    ...(options.model && { model: options.model }),
+    ...(options.maxTurns && { maxTurns: options.maxTurns }),
+    ...(options.maxBudget && { maxBudgetUsd: options.maxBudget }),
+    ...(options.permissionMode && { permissionMode: options.permissionMode }),
+  }
+}
 ```
 
 ---
 
 ## Menu Bar Specification
+
+### Disabled Items
+
+Phase 2/3 items render as greyed-out text with a tooltip "Coming soon". The `MenuItem` type includes:
+
+```typescript
+interface MenuItem {
+  label: string
+  shortcut?: string
+  action?: () => void
+  submenu?: MenuItem[]
+  enabled: boolean           // false = greyed out + "Coming soon" tooltip
+  separator?: boolean        // renders a divider line
+}
+```
 
 ### File
 
@@ -159,11 +264,12 @@ server/
 |------|----------|----------|-------|
 | New Agent Tab | Ctrl+T | Creates new tab with default name | 1 |
 | Close Tab | Ctrl+W | Closes active tab, interrupts if running | 1 |
-| Open Project... | Ctrl+O | Opens directory picker modal | 1 |
+| Open Project... | Ctrl+O | Opens directory picker as modal overlay | 1 |
 | Recent Projects | submenu | Lists last 10 projects from localStorage | 1 |
 | Export Chat... | - | Downloads active chat as .md file | 2 |
 | Export All Sessions... | - | Downloads zip of all sessions | 3 |
-| Quit | Ctrl+Q | Saves state, closes window | 1 |
+
+Note: No Quit item. This is a browser app; closing is handled by the browser tab.
 
 ### Project
 
@@ -269,11 +375,11 @@ interface AppStore {
 
   // Menu & UI
   activeMenu: string | null
-  openPanel: PanelType | null
+  openPanels: PanelType[]        // Multiple panels can be open
   layout: 'split' | 'chat' | 'preview'
   commandPaletteOpen: boolean
   setActiveMenu: (menu: string | null) => void
-  setOpenPanel: (panel: PanelType | null) => void
+  togglePanel: (panel: PanelType) => void
   setLayout: (layout: 'split' | 'chat' | 'preview') => void
 
   // Settings
@@ -295,7 +401,7 @@ interface Tab {
   status: 'idle' | 'running' | 'error'
   messages: Message[]
   sessionId: string | null
-  previewUrl: string | null
+  previewUrl: string | null       // null = no preview (legacy "" normalized to null)
   previewRoute: string
   zoom: number
   model: string
@@ -311,9 +417,12 @@ interface Tab {
 interface Message {
   role: 'user' | 'assistant' | 'tool' | 'system'
   content: string
+  toolUseId?: string
   toolName?: string
   toolInput?: unknown
-  timestamp: number
+  toolResult?: string
+  elapsed?: number
+  timestamp?: number              // Optional for backward compat with saved sessions
 }
 
 type PanelType =
@@ -344,6 +453,38 @@ interface Settings {
   shortcuts: Record<string, string>
 }
 ```
+
+### Panel Rendering Strategy
+
+Panels render as **slide-in drawers** from the right side, overlaying the preview panel. Multiple panels can be open simultaneously (stacked as tabs within the drawer area). Modal-type panels (About, Keyboard Shortcuts) render as centered modals instead.
+
+- **Drawer panels**: Settings, ProjectInfo, CLAUDE.md, Git, FileExplorer, ActivityLog, Templates, Snippets, MCP Servers, Skills, Hooks, Usage Dashboard
+- **Modal panels**: About, Keyboard Shortcuts, System Prompt Override
+- **Bottom panel**: Terminal (docked at bottom, resizable)
+
+---
+
+## Error & Loading States
+
+- **Socket disconnection**: Toast notification "Disconnected - reconnecting..." with auto-reconnect. Store sets `connected: false`, UI shows subtle indicator in the status area.
+- **API errors**: Toast notifications with error message, auto-dismiss after 5s. Non-blocking.
+- **Agent errors**: Displayed inline in chat as system messages (existing behavior preserved).
+- **Panel loading**: Skeleton/spinner while fetching API data. Each panel manages its own loading state.
+- **React error boundary**: Wraps each major section (MenuBar, TabBar, ChatPanel, PreviewPanel, Panels) independently so a crash in one section does not take down the whole app.
+
+---
+
+## Session Migration
+
+Existing sessions saved in `~/.samara-ui/sessions/` use the vanilla JS shape. Phase 1 loads them with best-effort normalization:
+
+- Missing fields get defaults (e.g., `model: "claude-sonnet-4-6"`, `maxTurns: null`, `permissionMode: "bypassPermissions"`)
+- `previewUrl: ""` normalized to `null`
+- Messages without `timestamp` are preserved as-is (field is optional)
+- Messages without `toolUseId`/`toolResult`/`elapsed` are preserved (fields are optional)
+- Unrecognized fields are silently dropped
+
+No migration script needed; normalization happens at load time in the Zustand store's `loadState` action.
 
 ---
 
@@ -386,18 +527,35 @@ POST /api/open-external          # Open terminal/VS Code at cwd
 
 ## Implementation Phases
 
-### Phase 1: React Migration + Menu Bar (core)
+### Phase 1a: React Scaffold + Core Migration
 
-Migrate existing vanilla JS to React/TS. All current functionality preserved. Menu bar with functional items for everything that already exists plus trivial additions.
+Migrate existing vanilla JS to React/TS. All current functionality preserved. No menu bar yet.
 
 **Deliverables:**
-- Vite + React + Tailwind + TS project scaffold
-- Server migrated to TypeScript
-- All current features working in React (tabs, chat, preview, state persistence)
-- Menu bar rendered with all 7 menus
-- Phase 1 items functional, Phase 2/3 items show "Coming soon" tooltip
-- Keyboard shortcuts for Phase 1 items
+- Vite + React + Tailwind v4 + TS project scaffold in `public/app/`
+- Shared types in `shared/types/`
+- Server migrated to TypeScript (rename + type annotations, no new endpoints)
 - Zustand store replacing global state object
+- All current features working: tabs, chat, preview, state persistence, usage bar
+- Socket.io events ported to `useSocket` hook
+- Session load normalization for backward compatibility
+- Error boundaries around major sections
+
+### Phase 1b: Menu Bar + Keyboard Shortcuts
+
+Add the menu bar and wire it to existing + trivial new actions.
+
+**Deliverables:**
+- Menu bar component with all 7 menus rendered
+- Phase 1 items functional, Phase 2/3 items greyed out with "Coming soon" tooltip
+- Keyboard shortcuts for all Phase 1 items
+- Agent menu: model selection, max turns, max budget, permission mode (requires agent-manager changes)
+- View menu: layout modes (split/chat/preview), panel toggles, zoom
+- Open in Terminal / Open in VS Code (via `/api/open-external`)
+- Open Project as modal overlay (reuses directory picker)
+- Recent Projects in localStorage
+- About modal, Help links
+- Keyboard shortcuts reference modal
 
 ### Phase 2: Panels & Project Management
 
@@ -435,15 +593,15 @@ Complex features requiring significant new infrastructure.
 
 ## Migration Strategy
 
-The migration from vanilla JS to React happens in Phase 1. Approach:
+The migration from vanilla JS to React happens in Phase 1a. Approach:
 
 1. **Scaffold** Vite + React + TS project in `public/app/`
-2. **Port state** - translate `state` object and `saveState`/`loadState` to Zustand store
-3. **Port socket.io** - translate event handlers to `useSocket` hook
-4. **Port UI** - translate `renderTabContent`, `renderChat`, `renderWelcome` etc. to React components
-5. **Port styles** - translate `styles.css` to Tailwind classes + minimal custom CSS
-6. **Add menu bar** - new component, wire to existing actions + stubs
-7. **Update server** - rename .js to .ts, add type annotations, add new endpoints
+2. **Create shared types** in `shared/types/` with path aliases
+3. **Port state** - translate `state` object and `saveState`/`loadState` to Zustand store with session normalization
+4. **Port socket.io** - translate event handlers to `useSocket` hook using shared payload types
+5. **Port UI** - translate `renderTabContent`, `renderChat`, `renderWelcome` etc. to React components
+6. **Port styles** - translate `styles.css` to Tailwind classes + minimal custom CSS
+7. **Update server** - rename .js to .ts, add type annotations, update socket handlers to accept per-tab options
 8. **Verify** - all existing functionality works identically
 9. **Remove old files** - delete `public/app.js`, `public/styles.css`, `public/index.html`
 
