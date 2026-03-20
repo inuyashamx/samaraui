@@ -44,11 +44,13 @@ export default function ChatMessage({ message }: { message: Message }) {
   }
 
   if (message.role === "tool") {
-    const desc = getToolDescription(message.toolName || "", message.toolInput);
+    const rawName = message.toolName || "";
+    const shortName = rawName.includes("__") ? rawName.split("__").pop()! : rawName;
+    const desc = getToolDescription(rawName, message.toolInput);
     return (
       <div className="mx-3 my-1 px-3 py-2 bg-surface-1 border-l-2 border-accent rounded text-xs">
         <div className="flex items-center gap-2">
-          <span className="text-accent font-mono font-medium">{message.toolName}</span>
+          <span className="text-accent font-mono font-medium">{shortName}</span>
           <span className="text-gray-400">{desc}</span>
           {message.elapsed != null && (
             <span className="text-gray-600 ml-auto">{message.elapsed.toFixed(1)}s</span>
