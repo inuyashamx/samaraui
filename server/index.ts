@@ -25,12 +25,27 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   app.use(express.json({ limit: "50mb" }));
 
   // ── UI static files under /_app/ ──
-  app.use("/_app", express.static(join(__dirname, "..", "public")));
+  const distPath = join(__dirname, "..", "public", "app", "dist");
+  if (existsSync(distPath)) {
+    app.use("/_app", express.static(distPath));
+    // SPA fallback: any /_app/* that isn't a static asset serves index.html
+    app.get("/_app/*", (req: Request, res: Response) => {
+      res.sendFile(join(distPath, "index.html"));
+    });
+  } else {
+    // Fallback to old public/ for development without build
+    app.use("/_app", express.static(join(__dirname, "..", "public")));
+  }
 
   // Root: serve UI only if no preview target is active
   app.get("/", (req: Request, res: Response, next: NextFunction) => {
     if (previewTarget) return next(); // let proxy handle it
-    res.sendFile(join(__dirname, "..", "public", "index.html"));
+    const distIndex = join(__dirname, "..", "public", "app", "dist", "index.html");
+    if (existsSync(distIndex)) {
+      res.sendFile(distIndex);
+    } else {
+      res.sendFile(join(__dirname, "..", "public", "index.html"));
+    }
   });
 
   // ── API routes ──
