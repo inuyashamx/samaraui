@@ -201,6 +201,150 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     }
   });
 
+  // ── Phase 2 API endpoints ──
+
+  app.get("/api/claude-md", (req: Request, res: Response) => {
+    const paths = [
+      join(currentCwd, "CLAUDE.md"),
+      join(currentCwd, ".claude", "CLAUDE.md"),
+    ];
+    for (const p of paths) {
+      if (existsSync(p)) {
+        return res.json({ content: readFileSync(p, "utf8"), path: p });
+      }
+    }
+    res.json({ content: null, path: null });
+  });
+
+  app.put("/api/claude-md", (req: Request, res: Response) => {
+    const { content, path: filePath } = req.body;
+    const target = filePath || join(currentCwd, "CLAUDE.md");
+    try {
+      writeFileSync(target, content, "utf8");
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/git/status", async (req: Request, res: Response) => {
+    try {
+      const { execSync } = await import("child_process");
+      const output = execSync("git status --short", { cwd: currentCwd, encoding: "utf8", timeout: 5000 });
+      const branch = execSync("git branch --show-current", { cwd: currentCwd, encoding: "utf8", timeout: 5000 }).trim();
+      res.json({ branch, status: output });
+    } catch (err: any) {
+      res.json({ error: err.message });
+    }
+  });
+
+  app.get("/api/git/log", async (req: Request, res: Response) => {
+    try {
+      const { execSync } = await import("child_process");
+      const output = execSync('git log --oneline -20 --format="%h|%s|%cr|%an"', { cwd: currentCwd, encoding: "utf8", timeout: 5000 });
+      const commits = output.trim().split("\n").filter(Boolean).map((line: string) => {
+        const [hash, message, date, author] = line.split("|");
+        return { hash, message, date, author };
+      });
+      res.json({ commits });
+    } catch (err: any) {
+      res.json({ error: err.message, commits: [] });
+    }
+  });
+
+  app.get("/api/files", (req: Request, res: Response) => {
+    const dir = (req.query.path as string) || currentCwd;
+    try {
+      const resolved = resolve(dir);
+      // Security: must be within currentCwd
+      if (!resolved.startsWith(currentCwd)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const entries = readdirSync(resolved, { withFileTypes: true })
+        .filter((e: any) => !e.name.startsWith(".") && e.name !== "node_modules")
+        .map((e: any) => ({
+          name: e.name,
+          path: join(resolved, e.name),
+          isDirectory: e.isDirectory(),
+        }))
+        .sort((a: any, b: any) => {
+          if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+      res.json({ entries, path: resolved });
+    } catch (err: any) {
+      res.json({ error: err.message, entries: [] });
+    }
+  });
+
+  app.get("/api/file", (req: Request, res: Response) => {
+    const filePath = req.query.path as string;
+    if (!filePath) return res.status(400).json({ error: "path required" });
+    const resolved = resolve(filePath);
+    if (!resolved.startsWith(currentCwd)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    try {
+      const content = readFileSync(resolved, "utf8");
+      res.json({ content, path: resolved });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/mcp-servers", (req: Request, res: Response) => {
+    const mcpPath = join(currentCwd, ".mcp.json");
+    try {
+      if (!existsSync(mcpPath)) return res.json({ servers: [] });
+      const data = JSON.parse(readFileSync(mcpPath, "utf8"));
+      const servers = Object.entries(data.mcpServers || {}).map(([name, config]: [string, any]) => ({
+        name,
+        type: config.type || "stdio",
+        command: config.command,
+        args: config.args,
+      }));
+      res.json({ servers });
+    } catch (err: any) {
+      res.json({ error: err.message, servers: [] });
+    }
+  });
+
+  app.get("/api/skills", (req: Request, res: Response) => {
+    const skillsDir = join(currentCwd, ".claude", "skills");
+    try {
+      if (!existsSync(skillsDir)) return res.json({ skills: [] });
+      const entries = readdirSync(skillsDir, { withFileTypes: true });
+      const skills = entries
+        .filter((e: any) => e.isDirectory())
+        .map((e: any) => {
+          const skillFile = join(skillsDir, e.name, "SKILL.md");
+          return {
+            name: e.name,
+            hasSkillFile: existsSync(skillFile),
+          };
+        });
+      res.json({ skills });
+    } catch (err: any) {
+      res.json({ error: err.message, skills: [] });
+    }
+  });
+
+  app.get("/api/project-info", async (req: Request, res: Response) => {
+    const info: any = { name: currentCwd.split(/[/\\]/).pop(), cwd: currentCwd };
+    // Check for readme
+    for (const name of ["README.md", "readme.md", "README"]) {
+      const p = join(currentCwd, name);
+      if (existsSync(p)) { info.readme = readFileSync(p, "utf8"); break; }
+    }
+    // Git info
+    try {
+      const { execSync } = await import("child_process");
+      info.branch = execSync("git branch --show-current", { cwd: currentCwd, encoding: "utf8", timeout: 3000 }).trim();
+      info.remote = execSync("git remote get-url origin", { cwd: currentCwd, encoding: "utf8", timeout: 3000 }).trim();
+    } catch {}
+    res.json(info);
+  });
+
   // ── Reverse proxy: everything not /_app/ or /api/ goes to preview target ──
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Skip if no preview target or if it's a socket.io/api/_app request
