@@ -54,6 +54,7 @@ export default function ChatInput({ tabId }: { tabId: string }) {
       <div className="flex gap-2">
         <textarea
           ref={inputRef}
+          data-chat-input
           className="flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-white resize-none outline-none focus:border-accent placeholder-gray-600"
           placeholder={isRunning ? "Agent is working..." : "Ask the agent..."}
           rows={3}

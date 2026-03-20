@@ -31,6 +31,12 @@ interface AppStore {
   usage: UsageData | null;
   setUsage: (data: UsageData | null) => void;
 
+  // Layout & Menu
+  activeMenu: string | null;
+  layout: "split" | "chat" | "preview";
+  setActiveMenu: (menu: string | null) => void;
+  setLayout: (layout: "split" | "chat" | "preview") => void;
+
   // State persistence
   loadFromSaved: (saved: { tabs: Tab[]; activeTabId: string }) => void;
   getSerializableState: () => { tabs: Tab[]; activeTabId: string };
@@ -143,6 +149,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // Usage
   usage: null,
   setUsage: (data) => set({ usage: data }),
+
+  // Layout & Menu
+  activeMenu: null,
+  layout: "split",
+  setActiveMenu: (menu) => set({ activeMenu: menu }),
+  setLayout: (layout) => set({ layout }),
 
   // State persistence
   loadFromSaved: (saved) => {

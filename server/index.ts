@@ -181,6 +181,26 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     res.json({ cwd: resolved });
   });
 
+  // ── Open external tools ──
+  app.post("/api/open-external", async (req: Request, res: Response) => {
+    const { type, cwd: dir } = req.body;
+    const targetDir = dir || currentCwd;
+    try {
+      if (type === "terminal") {
+        const { exec } = await import("child_process");
+        if (process.platform === "win32") exec(`start cmd /K "cd /d ${targetDir}"`);
+        else if (process.platform === "darwin") exec(`open -a Terminal "${targetDir}"`);
+        else exec(`x-terminal-emulator --working-directory="${targetDir}" || xterm -e "cd ${targetDir} && bash"`);
+      } else if (type === "vscode") {
+        const { exec } = await import("child_process");
+        exec(`code "${targetDir}"`);
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.json({ error: err.message });
+    }
+  });
+
   // ── Reverse proxy: everything not /_app/ or /api/ goes to preview target ──
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Skip if no preview target or if it's a socket.io/api/_app request
