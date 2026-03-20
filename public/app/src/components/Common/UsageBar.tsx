@@ -8,12 +8,23 @@ function usageColor(pct: number): string {
   return "text-green-400";
 }
 
+function barColor(pct: number): string {
+  if (pct >= 80) return "bg-red-400";
+  if (pct >= 50) return "bg-amber-400";
+  return "bg-green-400";
+}
+
 function formatReset(iso: string): string {
   const diff = new Date(iso).getTime() - Date.now();
   if (diff < 0) return "now";
   const mins = Math.round(diff / 60000);
   if (mins < 60) return `${mins}m`;
   return `${Math.round(mins / 60)}h ${mins % 60}m`;
+}
+
+interface UsageEntry {
+  utilization: number;
+  resets_at: string;
 }
 
 export default function UsageBar() {
@@ -23,7 +34,7 @@ export default function UsageBar() {
   useEffect(() => {
     const load = async () => {
       const data = await fetchUsage();
-      if (data) setUsage(data);
+      if (data && !data.error) setUsage(data);
     };
     load();
     const interval = setInterval(load, 60000);
@@ -32,16 +43,30 @@ export default function UsageBar() {
 
   if (!usage) return null;
 
+  const entries: { label: string; entry: UsageEntry }[] = [];
+  const u = usage as any;
+  if (u.five_hour) entries.push({ label: "5h", entry: u.five_hour });
+  if (u.seven_day) entries.push({ label: "7d", entry: u.seven_day });
+
+  if (entries.length === 0) return null;
+
   return (
     <div className="flex items-center gap-3 px-3 text-xs shrink-0">
-      {[usage.five_hour, usage.seven_day].map((entry, i) => (
-        <span key={i} className={usageColor(entry.utilization * 100)}>
-          {entry.label}: {Math.round(entry.utilization * 100)}%
-          <span className="text-gray-600 ml-1">
-            (resets {formatReset(entry.resets_at)})
-          </span>
-        </span>
-      ))}
+      {entries.map(({ label, entry }) => {
+        const pct = Math.min(100, Math.round(entry.utilization));
+        return (
+          <div key={label} className="flex items-center gap-1.5">
+            <span className={usageColor(pct)}>{label} {pct}%</span>
+            <div className="w-12 h-1.5 bg-surface-3 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${barColor(pct)}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-gray-600">{formatReset(entry.resets_at)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
