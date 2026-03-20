@@ -29,7 +29,7 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   if (existsSync(distPath)) {
     app.use("/_app", express.static(distPath));
     // SPA fallback: any /_app/* that isn't a static asset serves index.html
-    app.get("/_app/*", (req: Request, res: Response) => {
+    app.get("/_app/{*path}", (req: Request, res: Response) => {
       res.sendFile(join(distPath, "index.html"));
     });
   } else {
