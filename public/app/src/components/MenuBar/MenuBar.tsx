@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import { getSocket } from "@/lib/socket";
 import MenuDropdown, { type MenuItem } from "./MenuDropdown";
 import Modal from "@/components/Common/Modal";
+import CommandPalette from "@/components/Common/CommandPalette";
 
 const MODEL_OPTIONS = [
   "claude-opus-4-6",
@@ -39,6 +40,7 @@ export default function MenuBar() {
 
   const [showAbout, setShowAbout] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
 
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +49,13 @@ export default function MenuBar() {
     const handler = () => setShowShortcuts((v) => !v);
     window.addEventListener("menu:toggle-shortcuts", handler);
     return () => window.removeEventListener("menu:toggle-shortcuts", handler);
+  }, []);
+
+  // Listen for command palette toggle event
+  useEffect(() => {
+    const handler = () => setShowPalette((v) => !v);
+    window.addEventListener("menu:toggle-palette", handler);
+    return () => window.removeEventListener("menu:toggle-palette", handler);
   }, []);
 
   // Close menu when clicking outside
@@ -80,6 +89,31 @@ export default function MenuBar() {
   );
 
   const activeTab = getActiveTab();
+
+  const exportChat = () => {
+    const tab = getActiveTab();
+    if (!tab || tab.messages.length === 0) return;
+    let md = `# ${tab.name}\n\n`;
+    for (const msg of tab.messages) {
+      if (msg.role === "user") {
+        md += `## You\n\n${msg.content}\n\n`;
+      } else if (msg.role === "assistant") {
+        md += `## Assistant\n\n${msg.content}\n\n`;
+      } else if (msg.role === "tool") {
+        md += `> **${msg.toolName}**: ${msg.toolResult ? "completed" : "running"}${msg.elapsed ? ` (${msg.elapsed.toFixed(1)}s)` : ""}\n\n`;
+      } else if (msg.role === "system") {
+        md += `> ⚠️ ${msg.content}\n\n`;
+      }
+    }
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${tab.name.replace(/\s+/g, "-").toLowerCase()}-chat.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setActiveMenu(null);
+  };
 
   const makeModelSubmenu = (
     currentModel: string | null,
@@ -117,7 +151,7 @@ export default function MenuBar() {
       disabled("Open Project...", "Ctrl+O"),
       disabled("Recent Projects"),
       { label: "", separator: true },
-      disabled("Export Chat..."),
+      { label: "Export Chat...", action: exportChat },
       disabled("Export All Sessions..."),
     ],
     Project: [
@@ -235,7 +269,7 @@ export default function MenuBar() {
       disabled("Inspect Element"),
       { label: "", separator: true },
       disabled("Templates"),
-      disabled("Command Palette", "Ctrl+K"),
+      { label: "Command Palette", shortcut: "Ctrl+K", action: () => { setShowPalette(true); setActiveMenu(null); } },
       disabled("Snippets Manager"),
     ],
     Settings: [
@@ -303,6 +337,18 @@ export default function MenuBar() {
       },
     ],
   };
+
+  const allCommands = useMemo(() => {
+    const cmds: Array<{ label: string; category: string; shortcut?: string; action: () => void }> = [];
+    for (const [category, items] of Object.entries(menus)) {
+      for (const item of items) {
+        if (item.action && item.enabled !== false && !item.separator) {
+          cmds.push({ label: item.label, category, shortcut: item.shortcut, action: item.action });
+        }
+      }
+    }
+    return cmds;
+  }, [menus]);
 
   const menuKeys = Object.keys(menus);
 
@@ -380,6 +426,7 @@ export default function MenuBar() {
               ["Ctrl+=", "Preview Zoom In"],
               ["Ctrl+-", "Preview Zoom Out"],
               ["Ctrl+0", "Preview Zoom Reset"],
+              ["Ctrl+K", "Command Palette"],
               ["Ctrl+/", "Keyboard Shortcuts"],
               ["Esc", "Interrupt Agent"],
             ].map(([key, desc]) => (
@@ -391,6 +438,10 @@ export default function MenuBar() {
           </tbody>
         </table>
       </Modal>
+
+      {showPalette && (
+        <CommandPalette commands={allCommands} onClose={() => setShowPalette(false)} />
+      )}
     </>
   );
 }

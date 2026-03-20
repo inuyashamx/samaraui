@@ -46,6 +46,13 @@ export function useKeyboard() {
         return;
       }
 
+      // Ctrl+K - Toggle command palette
+      if (ctrl && e.key === "k") {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("menu:toggle-palette"));
+        return;
+      }
+
       // Ctrl+/ - Toggle shortcuts modal
       if (ctrl && e.key === "/") {
         e.preventDefault();
