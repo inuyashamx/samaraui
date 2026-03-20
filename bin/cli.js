@@ -1,34 +1,21 @@
-#!/usr/bin/env -S node --import tsx/esm
+#!/usr/bin/env node
 
-import { Command } from "commander";
-import { startServer } from "../server/index.ts";
+// This wrapper re-spawns itself with tsx loaded via --import
+// so that .ts imports work correctly on all platforms.
 
-const program = new Command();
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
-program
-  .name("samara-ui")
-  .description("Web UI for Claude Code")
-  .version("0.1.0")
-  .argument("[directory]", "Working directory for agents", process.cwd())
-  .option("-p, --port <port>", "Port to run on", "3000")
-  .option("--no-open", "Don't open browser automatically")
-  .action(async (directory, options) => {
-    const port = parseInt(options.port);
-    const cwd = directory;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const entry = join(__dirname, "_cli.ts");
 
-    console.log(`\n  Samara Code UI`);
-    console.log(`  Working directory: ${cwd}`);
-    console.log(`  Starting server on port ${port}...\n`);
-
-    const { server, launchBrowser } = await startServer({ port, cwd });
-
-    const url = `http://localhost:${port}/_app/`;
-    console.log(`  Ready at ${url}\n`);
-
-    if (options.open !== false) {
-      await launchBrowser(url);
-      console.log(`  Browser launched (Playwright)\n`);
-    }
+try {
+  execFileSync(process.execPath, ["--import", "tsx/esm", entry, ...process.argv.slice(2)], {
+    stdio: "inherit",
+    cwd: process.cwd(),
   });
-
-program.parse();
+} catch (e) {
+  process.exit(e.status || 1);
+}
