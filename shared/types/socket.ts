@@ -74,6 +74,8 @@ export interface ServerToClientEvents {
   "preview:navigate": (payload: PreviewNavigatePayload) => void;
   "preview:refresh": (payload: PreviewRefreshPayload) => void;
   "preview:get-url": (payload: { agentId: string }) => void;
+  "terminal:data": (data: string) => void;
+  "terminal:exit": (payload: { code: number }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -82,4 +84,7 @@ export interface ClientToServerEvents {
   "agent:interrupt": (payload: { agentId: string }) => void;
   "preview:url-update": (payload: { url: string }) => void;
   "preview:current-url": (payload: { url: string }) => void;
+  "terminal:start": () => void;
+  "terminal:input": (data: string) => void;
+  "terminal:resize": (payload: { cols: number; rows: number }) => void;
 }
