@@ -1,36 +1,37 @@
 import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { readdirSync, readFileSync, existsSync } from "fs";
+import { join, basename } from "path";
 
-const SYSTEM_PROMPT = `You are a developer assistant working on a Polymer web application. You have a live preview browser that shows the running app, and powerful tools to control and inspect it.
+const SYSTEM_PROMPT = `You are a developer assistant. You have a live preview browser and project skills available.
 
 ## Preview Tools
 
 - **GetPreviewURL** — See what page the user is currently viewing.
-- **NavigatePreview** — Navigate the preview to a route (e.g., "/modulo/clientes").
+- **NavigatePreview** — Navigate the preview to a route.
 - **RefreshPreview** — Reload the preview after making code changes.
-- **ScreenshotPreview** — Take a real screenshot of the preview. Returns an image you can analyze.
-- **InspectElement** — Query DOM elements by CSS selector. Returns tag, classes, text, visibility.
-- **GetPageContent** — Get innerHTML of an element or the full page body.
-- **ClickElement** — Click an element in the preview by CSS selector.
-- **TypeInElement** — Type text into an input/textarea by CSS selector.
+- **ScreenshotPreview** — Take a real screenshot of the preview for visual analysis.
+- **InspectElement** — Query DOM elements by CSS selector.
+- **GetPageContent** — Get innerHTML of an element or the page body.
+- **ClickElement** — Click an element in the preview.
+- **TypeInElement** — Type text into an input/textarea.
+
+## Skills
+
+- **ListSkills** — List available project skills (context documents with patterns, API docs, schemas, etc.)
+- **LoadSkill** — Load a skill by name to get its full content. ALWAYS load relevant skills before working on unfamiliar code.
 
 ## Workflow
 
-When the user asks you to fix, change, or add something:
-
-1. **CONTEXT** — Use GetPreviewURL to see where the user is. Use ScreenshotPreview if you need to see the visual state.
-2. **ANALYZE** — Find the relevant module/component in the code. Read it.
-3. **NAVIGATE** — Use NavigatePreview to go to the relevant page so the user sees you found it.
-4. **CLARIFY** — If ambiguous, ask. For complex changes, propose a numbered plan and wait.
-5. **IMPLEMENT** — Make changes with Edit/Write. Don't refresh during implementation.
-6. **TEST** — RefreshPreview, NavigatePreview to the page, ScreenshotPreview to verify. Tell the user what changed and ask them to verify.
+1. **CONTEXT** — Use ListSkills to see what knowledge is available. Load relevant skills. Use GetPreviewURL/ScreenshotPreview to see the current state.
+2. **ANALYZE** — Find the relevant code. Read it.
+3. **IMPLEMENT** — Make changes with Edit/Write. Don't refresh during implementation.
+4. **TEST** — RefreshPreview once after ALL edits, navigate to the page, ScreenshotPreview to verify.
 
 ## Important
 
-- ALWAYS check context first — the user might be on a different page than what they're asking about.
-- Navigate BEFORE starting changes.
-- NEVER refresh the preview during implementation. Only use RefreshPreview ONCE at the very end after ALL edits are complete.
-- After ALL changes are done, RefreshPreview once, navigate to the affected page, and tell the user to verify.
+- Load skills before working on unfamiliar patterns or APIs.
+- NEVER refresh during implementation. Only RefreshPreview ONCE at the end.
 - Be concise.`;
 
 class AgentManager {
@@ -150,8 +151,59 @@ class AgentManager {
             return { content: [{ type: "text", text: result }] };
           }
         ),
+        tool(
+          "ListSkills",
+          "List available project skills. Skills contain patterns, API docs, schemas, and other context. Always check this first when working on unfamiliar code.",
+          {},
+          async () => {
+            const skills = this._findSkills();
+            if (skills.length === 0) {
+              return { content: [{ type: "text", text: "No skills found in this project." }] };
+            }
+            const list = skills.map((s) => `- **${s.name}**: ${s.path}`).join("\n");
+            return { content: [{ type: "text", text: `Available skills:\n${list}\n\nUse LoadSkill to read any of these.` }] };
+          }
+        ),
+        tool(
+          "LoadSkill",
+          "Load a project skill by name. Returns the full skill content with patterns, API docs, schemas, etc.",
+          { name: z.string().describe("Skill name, e.g. 'sacs-backend-api', 'sacs-polymer-patterns'") },
+          async ({ name }) => {
+            const skills = this._findSkills();
+            const skill = skills.find((s) => s.name === name || s.name.includes(name));
+            if (!skill) {
+              const available = skills.map((s) => s.name).join(", ");
+              return { content: [{ type: "text", text: `Skill "${name}" not found. Available: ${available || "none"}` }] };
+            }
+            try {
+              const content = readFileSync(skill.path, "utf8");
+              return { content: [{ type: "text", text: content }] };
+            } catch (err) {
+              return { content: [{ type: "text", text: `Error reading skill: ${err.message}` }] };
+            }
+          }
+        ),
       ],
     });
+  }
+
+  _findSkills() {
+    const skills = [];
+    // Check .claude/skills/ in the working directory
+    const skillsDir = join(this.cwd, ".claude", "skills");
+    if (existsSync(skillsDir)) {
+      try {
+        for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+          if (entry.isDirectory()) {
+            const skillFile = join(skillsDir, entry.name, "SKILL.md");
+            if (existsSync(skillFile)) {
+              skills.push({ name: entry.name, path: skillFile });
+            }
+          }
+        }
+      } catch {}
+    }
+    return skills;
   }
 
   async runAgent(agentId, prompt, socket, resume = false) {

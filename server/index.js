@@ -22,7 +22,7 @@ export async function startServer({ port, cwd }) {
   let previewTarget = null;
   const previewBrowser = new PreviewBrowser();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
 
   // ── UI static files under /_app/ ──
   app.use("/_app", express.static(join(__dirname, "..", "public")));

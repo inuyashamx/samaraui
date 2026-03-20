@@ -455,6 +455,17 @@ function renderTabContent(tabId) {
     <div class="flex flex-1 overflow-hidden" id="agent-layout-${tab.id}">
       <!-- Chat panel -->
       <div class="flex flex-col" id="chat-panel-${tab.id}" style="width: 35%; min-width: 280px;">
+        <!-- Chat toolbar -->
+        <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface-1 shrink-0">
+          <span class="text-xs text-gray-500 font-medium">${escapeHtml(tab.name)}</span>
+          <div class="relative">
+            <button class="text-gray-500 hover:text-white text-sm px-1 leading-none" onclick="toggleChatMenu('${tab.id}')" title="Options">...</button>
+            <div id="chat-menu-${tab.id}" class="chat-menu hidden">
+              <button onclick="clearChat('${tab.id}')">Clear conversation</button>
+              <button onclick="renameTab('${tab.id}')">Rename tab</button>
+            </div>
+          </div>
+        </div>
         <!-- Messages -->
         <div class="flex-1 overflow-y-auto" id="chat-messages-${tab.id}">
           ${tab.messages.length === 0 ? renderWelcome() : ""}
@@ -787,6 +798,64 @@ function zoomPreview(tabId, delta) {
   if (label) label.textContent = `${tab.zoom}%`;
 }
 
+function toggleChatMenu(tabId) {
+  // Close all other menus first
+  document.querySelectorAll(".chat-menu").forEach((m) => {
+    if (m.id !== `chat-menu-${tabId}`) m.classList.add("hidden");
+  });
+  const menu = document.getElementById(`chat-menu-${tabId}`);
+  if (menu) menu.classList.toggle("hidden");
+}
+
+function clearChat(tabId) {
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  tab.messages = [];
+  tab.sessionId = null;
+  tab.lastCost = null;
+  tab.lastDuration = null;
+  tab.lastTurns = null;
+  toggleChatMenu(tabId);
+  renderChat(tabId);
+  saveState();
+}
+
+function renameTab(tabId) {
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  toggleChatMenu(tabId);
+  // Replace the tab name span with an input
+  const toolbar = document.querySelector(`#chat-panel-${tabId} .flex.items-center.justify-between`);
+  if (!toolbar) return;
+  const nameSpan = toolbar.querySelector("span");
+  if (!nameSpan) return;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = tab.name;
+  input.className = "bg-surface-2 border border-accent rounded px-2 py-0.5 text-xs text-gray-200 outline-none font-mono w-32";
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") { tab.name = input.value.trim() || tab.name; finish(); }
+    if (e.key === "Escape") finish();
+  };
+  input.onblur = () => { tab.name = input.value.trim() || tab.name; finish(); };
+  function finish() {
+    nameSpan.textContent = tab.name;
+    input.replaceWith(nameSpan);
+    updateTabBar();
+    saveState();
+  }
+  nameSpan.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+// Close menus when clicking outside
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".relative")) {
+    document.querySelectorAll(".chat-menu").forEach((m) => m.classList.add("hidden"));
+  }
+});
+
 function showPreviewUrlInput(tabId) {
   const display = document.getElementById(`preview-url-display-${tabId}`);
   const edit = document.getElementById(`preview-url-edit-${tabId}`);
@@ -954,7 +1023,11 @@ async function loadState(cwd) {
 
 // Auto-save every 10s and on beforeunload
 setInterval(() => { if (state.ready) saveState(); }, 10000);
-window.addEventListener("beforeunload", () => { if (state.ready) saveState(); });
+window.addEventListener("beforeunload", () => {
+  if (!state.ready || state.tabs.length === 0) return;
+  const payload = JSON.stringify({ cwd: state.cwd, state: getSerializableState() });
+  navigator.sendBeacon("/api/state", new Blob([payload], { type: "application/json" }));
+});
 
 // ── Usage Bar ──
 async function fetchUsage() {
