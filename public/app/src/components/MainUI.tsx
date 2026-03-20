@@ -13,6 +13,8 @@ import ActivityLog from "@/components/Panels/ActivityLog";
 import McpServersPanel from "@/components/Panels/McpServersPanel";
 import SkillsPanel from "@/components/Panels/SkillsPanel";
 import SettingsPanel from "@/components/Panels/SettingsPanel";
+import UsageDashboard from "@/components/Panels/UsageDashboard";
+import TerminalPanel from "@/components/Panels/TerminalPanel";
 
 export default function MainUI() {
   const tabs = useAppStore((s) => s.tabs);
@@ -34,6 +36,8 @@ export default function MainUI() {
       case "mcpServers": return <McpServersPanel onClose={onClose} />;
       case "skills": return <SkillsPanel onClose={onClose} />;
       case "settings": return <SettingsPanel onClose={onClose} />;
+      case "usageDashboard": return <UsageDashboard onClose={onClose} />;
+      case "terminal": return <TerminalPanel onClose={onClose} />;
       default: return null;
     }
   })() : null;

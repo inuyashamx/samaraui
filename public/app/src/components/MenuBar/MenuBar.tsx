@@ -90,6 +90,19 @@ export default function MenuBar() {
 
   const activeTab = getActiveTab();
 
+  const exportAllSessions = async () => {
+    const res = await fetch("/api/export-sessions");
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "samara-sessions.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    setActiveMenu(null);
+  };
+
   const exportChat = () => {
     const tab = getActiveTab();
     if (!tab || tab.messages.length === 0) return;
@@ -152,7 +165,7 @@ export default function MenuBar() {
       disabled("Recent Projects"),
       { label: "", separator: true },
       { label: "Export Chat...", action: exportChat },
-      disabled("Export All Sessions..."),
+      { label: "Export All Sessions...", action: exportAllSessions },
     ],
     Project: [
       disabled("Project Info"),
@@ -259,10 +272,10 @@ export default function MenuBar() {
       },
       { label: "", separator: true },
       { label: "Activity Log", action: () => { togglePanel("activityLog"); setActiveMenu(null); } },
-      disabled("Usage Dashboard"),
+      { label: "Usage Dashboard", action: () => { togglePanel("usageDashboard"); setActiveMenu(null); } },
     ],
     Tools: [
-      disabled("Terminal"),
+      { label: "Terminal", action: () => { togglePanel("terminal"); setActiveMenu(null); } },
       { label: "File Explorer", action: () => { togglePanel("fileExplorer"); setActiveMenu(null); } },
       { label: "", separator: true },
       disabled("Screenshot Preview"),

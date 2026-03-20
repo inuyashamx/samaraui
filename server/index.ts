@@ -8,6 +8,7 @@ import { dirname, join, resolve } from "path";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
 import { createHash } from "crypto";
 import { homedir } from "os";
+import { spawn } from "child_process";
 import AgentManager from "./agent-manager.js";
 import PreviewBrowser from "./preview-browser.js";
 
@@ -167,6 +168,29 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
       res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/export-sessions", (req: Request, res: Response) => {
+    try {
+      if (!existsSync(stateDir)) return res.json({ sessions: [] });
+      const files = readdirSync(stateDir).filter((f: string) => f.endsWith(".json"));
+      const sessions = files.map((f: string) => {
+        try {
+          const data = JSON.parse(readFileSync(join(stateDir, f), "utf8"));
+          return {
+            file: f,
+            tabs: (data.tabs || []).length,
+            activeTabId: data.activeTabId,
+            tabNames: (data.tabs || []).map((t: any) => t.name),
+          };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+      res.json({ sessions });
+    } catch (err: any) {
+      res.json({ error: err.message, sessions: [] });
     }
   });
 
@@ -345,6 +369,23 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     res.json(info);
   });
 
+  app.get("/api/project-settings", (req: Request, res: Response) => {
+    const paths = [
+      join(currentCwd, ".claude", "settings.local.json"),
+      join(currentCwd, ".claude", "settings.json"),
+    ];
+    for (const p of paths) {
+      if (existsSync(p)) {
+        try {
+          return res.json({ content: readFileSync(p, "utf8"), path: p });
+        } catch (err: any) {
+          return res.json({ error: err.message });
+        }
+      }
+    }
+    res.json({ content: null, path: null });
+  });
+
   // ── Reverse proxy: everything not /_app/ or /api/ goes to preview target ──
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Skip if no preview target or if it's a socket.io/api/_app request
@@ -406,8 +447,48 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
       agentManager?.interrupt(agentId);
     });
 
+    // Terminal
+    let termProcess: any = null;
+
+    socket.on("terminal:start", () => {
+      if (termProcess) return;
+      const shell = process.platform === "win32" ? "cmd.exe" : "bash";
+      termProcess = spawn(shell, [], {
+        cwd: currentCwd,
+        env: { ...process.env, TERM: "xterm-256color" },
+        shell: true,
+      });
+
+      termProcess.stdout.on("data", (data: Buffer) => {
+        socket.emit("terminal:data", data.toString());
+      });
+
+      termProcess.stderr.on("data", (data: Buffer) => {
+        socket.emit("terminal:data", data.toString());
+      });
+
+      termProcess.on("exit", (code: number) => {
+        socket.emit("terminal:exit", { code });
+        termProcess = null;
+      });
+    });
+
+    socket.on("terminal:input", (data: string) => {
+      if (termProcess?.stdin?.writable) {
+        termProcess.stdin.write(data);
+      }
+    });
+
+    socket.on("terminal:resize", ({ cols, rows }: { cols: number; rows: number }) => {
+      // Basic resize support - not all terminals support this via child_process
+    });
+
     socket.on("disconnect", () => {
       console.log("  Client disconnected");
+      if (termProcess) {
+        termProcess.kill();
+        termProcess = null;
+      }
     });
   });
 
