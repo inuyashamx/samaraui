@@ -3,6 +3,7 @@ import { useAppStore } from "@/store/appStore";
 import ChatToolbar from "./ChatToolbar";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
+import AgentStatus from "./AgentStatus";
 
 export default function ChatPanel({ tabId }: { tabId: string }) {
   const messages = useAppStore(
@@ -34,6 +35,7 @@ export default function ChatPanel({ tabId }: { tabId: string }) {
         ) : (
           messages.map((msg, i) => <ChatMessage key={i} message={msg} />)
         )}
+        <AgentStatus tabId={tabId} />
       </div>
       <ChatInput tabId={tabId} />
     </div>
