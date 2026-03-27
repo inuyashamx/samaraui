@@ -30,6 +30,13 @@ export default function App() {
         store.addTab();
       }
 
+      // Save to recents
+      try {
+        const recents: string[] = JSON.parse(localStorage.getItem("samara-recents") || "[]");
+        const updated = [cwd, ...recents.filter((r) => r !== cwd)].slice(0, 10);
+        localStorage.setItem("samara-recents", JSON.stringify(updated));
+      } catch {}
+
       store.setReady(true);
     }
     init();

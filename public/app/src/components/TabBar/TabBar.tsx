@@ -14,8 +14,7 @@ export default function TabBar() {
   const cwd = useAppStore((s) => s.cwd);
 
   const changeCwd = () => {
-    useAppStore.getState().setReady(false);
-    useAppStore.getState().setCwd("");
+    window.dispatchEvent(new CustomEvent("menu:open-folder"));
   };
 
   const handleClose = (id: string) => {
@@ -25,6 +24,12 @@ export default function TabBar() {
       updateTab(id, { status: "idle" });
     }
     removeTab(id);
+    // If closed tab had a preview, switch proxy to another tab's preview or clear it
+    if (tab?.previewUrl) {
+      const remaining = tabs.filter((t) => t.id !== id);
+      const next = remaining.find((t) => t.previewUrl);
+      setPreviewTarget(next?.previewUrl || "");
+    }
   };
 
   return (
@@ -36,10 +41,8 @@ export default function TabBar() {
           isActive={tab.id === activeTabId}
           onSelect={() => {
             setActiveTab(tab.id);
-            // Switch the Express proxy to this tab's preview URL
-            if (tab.previewUrl) {
-              setPreviewTarget(tab.previewUrl);
-            }
+            // Switch the Express proxy to this tab's preview URL (or clear it)
+            setPreviewTarget(tab.previewUrl || "");
           }}
           onClose={() => handleClose(tab.id)}
         />
@@ -55,9 +58,9 @@ export default function TabBar() {
       <button
         className="px-2 py-1 text-xs text-gray-500 hover:text-white shrink-0"
         onClick={changeCwd}
-        title={cwd}
+        title="Open Folder..."
       >
-        {cwd.split(/[/\\]/).pop()}
+        {cwd}
       </button>
       <UsageBar />
     </div>

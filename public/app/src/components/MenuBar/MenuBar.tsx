@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import { getSocket } from "@/lib/socket";
+import { setPreviewTarget, setCwd, loadState } from "@/lib/api";
 import MenuDropdown, { type MenuItem } from "./MenuDropdown";
 import Modal from "@/components/Common/Modal";
 import CommandPalette from "@/components/Common/CommandPalette";
 
 const MODEL_OPTIONS = [
+  "claude-opus-4-6-20250624",
   "claude-opus-4-6",
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
@@ -41,6 +43,7 @@ export default function MenuBar() {
   const [showAbout, setShowAbout] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [recents, setRecents] = useState<string[]>([]);
 
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +59,20 @@ export default function MenuBar() {
     const handler = () => setShowPalette((v) => !v);
     window.addEventListener("menu:toggle-palette", handler);
     return () => window.removeEventListener("menu:toggle-palette", handler);
+  }, []);
+
+  // Load recents from localStorage
+  useEffect(() => {
+    try {
+      setRecents(JSON.parse(localStorage.getItem("samara-recents") || "[]"));
+    } catch {}
+  }, []);
+
+  // Listen for open folder event (Ctrl+O)
+  useEffect(() => {
+    const handler = () => openFolder();
+    window.addEventListener("menu:open-folder", handler);
+    return () => window.removeEventListener("menu:open-folder", handler);
   }, []);
 
   // Close menu when clicking outside
@@ -87,6 +104,51 @@ export default function MenuBar() {
     },
     [cwd]
   );
+
+  const saveRecent = useCallback((path: string) => {
+    const updated = [path, ...recents.filter((r) => r !== path)].slice(0, 10);
+    setRecents(updated);
+    localStorage.setItem("samara-recents", JSON.stringify(updated));
+  }, [recents]);
+
+  const switchProject = useCallback(async (selected: string) => {
+    setActiveMenu(null);
+    const store = useAppStore.getState();
+
+    // Interrupt running agents
+    const socket = getSocket();
+    for (const tab of store.tabs) {
+      if (tab.status === "running") {
+        socket.emit("agent:interrupt", { agentId: tab.id });
+      }
+    }
+
+    await setPreviewTarget("");
+    await setCwd(selected);
+    store.setCwd(selected);
+    store.tabs.forEach((t) => store.removeTab(t.id));
+
+    const saved = await loadState(selected);
+    if (saved?.state?.tabs?.length) {
+      store.loadFromSaved(saved.state);
+      const restoredTab = saved.state.tabs.find((t: any) => t.previewUrl);
+      if (restoredTab?.previewUrl) {
+        setPreviewTarget(restoredTab.previewUrl);
+      }
+    } else {
+      store.addTab();
+    }
+
+    saveRecent(selected);
+  }, [setActiveMenu, saveRecent]);
+
+  const openFolder = useCallback(async () => {
+    setActiveMenu(null);
+    const res = await fetch("/api/pick-folder", { method: "POST" });
+    const { path: selected } = await res.json();
+    if (!selected) return;
+    await switchProject(selected);
+  }, [setActiveMenu, switchProject]);
 
   const activeTab = getActiveTab();
 
@@ -161,20 +223,29 @@ export default function MenuBar() {
         action: () => activeTabId && removeTab(activeTabId),
       },
       { label: "", separator: true },
-      disabled("Open Project...", "Ctrl+O"),
-      disabled("Recent Projects"),
+      {
+        label: "Open Folder...",
+        shortcut: "Ctrl+O",
+        action: openFolder,
+      },
+      {
+        label: "Recent Projects",
+        enabled: recents.length > 0,
+        submenu: recents.map((path) => ({
+          label: path.split(/[/\\]/).pop() || path,
+          action: () => switchProject(path),
+        })),
+      },
       { label: "", separator: true },
       { label: "Export Chat...", action: exportChat },
       { label: "Export All Sessions...", action: exportAllSessions },
     ],
     Project: [
-      disabled("Project Info"),
       { label: "CLAUDE.md", action: () => { togglePanel("claudeMd"); setActiveMenu(null); } },
-      disabled(".claude/settings.json"),
+      { label: ".claude/settings.json", action: () => { togglePanel("claudeSettings"); setActiveMenu(null); } },
       { label: "", separator: true },
       { label: "MCP Servers", action: () => { togglePanel("mcpServers"); setActiveMenu(null); } },
       { label: "Skills", action: () => { togglePanel("skills"); setActiveMenu(null); } },
-      disabled("Hooks"),
       { label: "", separator: true },
       { label: "Git Status", action: () => { togglePanel("git"); setActiveMenu(null); } },
       { label: "", separator: true },
@@ -278,6 +349,21 @@ export default function MenuBar() {
       { label: "Terminal", action: () => { togglePanel("terminal"); setActiveMenu(null); } },
       { label: "File Explorer", action: () => { togglePanel("fileExplorer"); setActiveMenu(null); } },
       { label: "", separator: true },
+      {
+        label: "Reset Preview",
+        action: async () => {
+          // Full reset: proxy + browser cache on server
+          await fetch("/api/reset-preview", { method: "POST" });
+          // Clear previewUrl on all tabs
+          const tabs = useAppStore.getState().tabs;
+          tabs.forEach((t) => updateTab(t.id, { previewUrl: null, previewRoute: "/" }));
+          // Clear all iframes
+          document.querySelectorAll<HTMLIFrameElement>("iframe[id^='preview-frame-']").forEach((f) => {
+            f.src = "about:blank";
+          });
+          setActiveMenu(null);
+        },
+      },
       disabled("Screenshot Preview"),
       disabled("Inspect Element"),
       { label: "", separator: true },
@@ -455,6 +541,7 @@ export default function MenuBar() {
       {showPalette && (
         <CommandPalette commands={allCommands} onClose={() => setShowPalette(false)} />
       )}
+
     </>
   );
 }

@@ -46,6 +46,13 @@ export function useKeyboard() {
         return;
       }
 
+      // Ctrl+O - Open folder
+      if (ctrl && e.key === "o") {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("menu:open-folder"));
+        return;
+      }
+
       // Ctrl+K - Toggle command palette
       if (ctrl && e.key === "k") {
         e.preventDefault();
