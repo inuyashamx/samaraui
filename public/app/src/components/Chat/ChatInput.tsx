@@ -28,12 +28,11 @@ export default function ChatInput({ tabId }: { tabId: string }) {
     setValue("");
 
     const socket = getSocket();
-    const payload = { agentId: tabId, prompt: text };
 
     if (tab.sessionId) {
-      socket.emit("agent:message", payload);
+      socket.emit("agent:message", { agentId: tabId, prompt: text, sessionId: tab.sessionId, model: tab.model || undefined });
     } else {
-      socket.emit("agent:start", payload);
+      socket.emit("agent:start", { agentId: tabId, prompt: text, model: tab.model || undefined });
     }
   };
 

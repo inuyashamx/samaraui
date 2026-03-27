@@ -5,6 +5,7 @@ export interface AgentStartPayload {
   maxTurns?: number;
   maxBudget?: number;
   permissionMode?: string;
+  sessionId?: string;
 }
 
 export interface AgentInitPayload {

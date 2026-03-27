@@ -103,6 +103,20 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     res.json({ ok: true, url: previewTarget });
   });
 
+  app.post("/api/reset-preview", async (req: Request, res: Response) => {
+    // Clear proxy target
+    previewTarget = null;
+    if (agentManager) agentManager.setPreviewBaseUrl(null);
+    console.log("  Preview fully reset (proxy + browser cache)");
+    // Clear browser cache
+    try {
+      await previewBrowser.clearCache();
+    } catch (e) {
+      console.log("  Could not clear browser cache:", e);
+    }
+    res.json({ ok: true });
+  });
+
   // ── Usage endpoint ──
   let usageCache: { data: any; fetchedAt: number } = { data: null, fetchedAt: 0 };
 
@@ -205,6 +219,57 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     res.json({ cwd: resolved });
   });
 
+  // ── Native folder picker ──
+  app.post("/api/pick-folder", async (req: Request, res: Response) => {
+    const runCmd = (cmd: string, args: string[]): Promise<string | null> =>
+      new Promise((resolve) => {
+        const proc = spawn(cmd, args);
+        let stdout = "";
+        proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+        proc.on("close", () => resolve(stdout.trim() || null));
+        proc.on("error", () => resolve(null));
+      });
+
+    try {
+      let selected: string | null = null;
+
+      if (process.platform === "win32") {
+        // Write a temp .ps1 script to avoid escaping issues and ensure dialog is topmost
+        const scriptDir = join(homedir(), ".samara-ui");
+        if (!existsSync(scriptDir)) mkdirSync(scriptDir, { recursive: true });
+        const tmpScript = join(scriptDir, "pick-folder.ps1");
+        writeFileSync(tmpScript, [
+          'Add-Type -AssemblyName System.Windows.Forms',
+          '$f = New-Object System.Windows.Forms.FolderBrowserDialog',
+          '$f.Description = "Select project folder"',
+          '$f.RootFolder = [System.Environment+SpecialFolder]::MyComputer',
+          '$f.ShowNewFolderButton = $false',
+          '# Create a topmost dummy form to own the dialog',
+          '$owner = New-Object System.Windows.Forms.Form',
+          '$owner.TopMost = $true',
+          '$owner.StartPosition = "CenterScreen"',
+          '$owner.Width = 0; $owner.Height = 0; $owner.FormBorderStyle = "None"',
+          '$owner.Show(); $owner.Hide()',
+          'if ($f.ShowDialog($owner) -eq "OK") { Write-Output $f.SelectedPath }',
+          '$owner.Dispose()',
+        ].join('\n'), "utf-8");
+        selected = await runCmd("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", tmpScript]);
+      } else if (process.platform === "darwin") {
+        selected = await runCmd("osascript", ["-e", 'POSIX path of (choose folder with prompt "Select project folder")']);
+      } else {
+        selected = await runCmd("zenity", ["--file-selection", "--directory", "--title=Select project folder"]);
+      }
+
+      if (selected && existsSync(selected)) {
+        res.json({ path: selected });
+      } else {
+        res.json({ path: null });
+      }
+    } catch {
+      res.json({ path: null });
+    }
+  });
+
   // ── Open external tools ──
   app.post("/api/open-external", async (req: Request, res: Response) => {
     const { type, cwd: dir } = req.body;
@@ -248,6 +313,29 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
       res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/claude-settings", (req: Request, res: Response) => {
+    const p = join(currentCwd, ".claude", "settings.json");
+    if (existsSync(p)) {
+      return res.json({ content: readFileSync(p, "utf8"), path: p });
+    }
+    res.json({ content: null, path: p });
+  });
+
+  app.put("/api/claude-settings", (req: Request, res: Response) => {
+    const { content } = req.body;
+    const target = join(currentCwd, ".claude", "settings.json");
+    try {
+      // Validate JSON before saving
+      JSON.parse(content);
+      const dir = join(currentCwd, ".claude");
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(target, content, "utf8");
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
   });
 
@@ -424,22 +512,22 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   io.on("connection", (socket: Socket) => {
     console.log("  Client connected");
 
-    socket.on("agent:start", ({ agentId, prompt }: { agentId: string; prompt: string }) => {
+    socket.on("agent:start", ({ agentId, prompt, model }: { agentId: string; prompt: string; model?: string }) => {
       if (!agentManager) {
         socket.emit("agent:error", { agentId, error: "No working directory selected" });
         return;
       }
-      console.log(`  Agent ${agentId} started`);
-      agentManager.runAgent(agentId, prompt, socket);
+      console.log(`  Agent ${agentId} started${model ? ` (${model})` : ""}`);
+      agentManager.runAgent(agentId, prompt, socket, false, undefined, model);
     });
 
-    socket.on("agent:message", ({ agentId, prompt }: { agentId: string; prompt: string }) => {
+    socket.on("agent:message", ({ agentId, prompt, sessionId, model }: { agentId: string; prompt: string; sessionId?: string; model?: string }) => {
       if (!agentManager) {
         socket.emit("agent:error", { agentId, error: "No working directory selected" });
         return;
       }
-      console.log(`  Agent ${agentId} continuing`);
-      agentManager.runAgent(agentId, prompt, socket, true);
+      console.log(`  Agent ${agentId} continuing${model ? ` (${model})` : ""}`);
+      agentManager.runAgent(agentId, prompt, socket, true, sessionId, model);
     });
 
     socket.on("agent:interrupt", ({ agentId }: { agentId: string }) => {
