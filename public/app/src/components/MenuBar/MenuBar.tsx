@@ -279,8 +279,6 @@ export default function MenuBar() {
           activeTabId && updateTab(activeTabId, { model })
         ),
       },
-      { label: "Max Turns", action: () => { togglePanel("settings"); setActiveMenu(null); } },
-      { label: "Max Budget", action: () => { togglePanel("settings"); setActiveMenu(null); } },
       {
         label: "Permission Mode",
         submenu: makePermSubmenu(
@@ -289,7 +287,6 @@ export default function MenuBar() {
         ),
       },
       { label: "", separator: true },
-      { label: "System Prompt Override...", action: () => { togglePanel("settings"); setActiveMenu(null); } },
       {
         label: "Interrupt Agent",
         shortcut: "Esc",
@@ -321,10 +318,6 @@ export default function MenuBar() {
           el?.focus();
         },
       },
-      { label: "", separator: true },
-      disabled("Preview Zoom In", "Ctrl+="),
-      disabled("Preview Zoom Out", "Ctrl+-"),
-      disabled("Preview Zoom Reset", "Ctrl+0"),
       { label: "", separator: true },
       {
         label: "Layout: Side by Side",
@@ -364,8 +357,6 @@ export default function MenuBar() {
           setActiveMenu(null);
         },
       },
-      disabled("Screenshot Preview"),
-      disabled("Inspect Element"),
       { label: "", separator: true },
       disabled("Templates"),
       { label: "Command Palette", shortcut: "Ctrl+K", action: () => { setShowPalette(true); setActiveMenu(null); } },
@@ -392,9 +383,6 @@ export default function MenuBar() {
       },
       { label: "", separator: true },
       { label: "General", action: () => { togglePanel("settings"); setActiveMenu(null); } },
-      disabled("API Key / Auth"),
-      disabled("Proxy Settings"),
-      disabled("Preview Server Config"),
       disabled("Keyboard Shortcuts"),
       { label: "", separator: true },
       {
