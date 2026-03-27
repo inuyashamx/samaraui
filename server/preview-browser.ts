@@ -178,9 +178,51 @@ class PreviewBrowser {
       return null;
     }
 
-    // Capture as JPEG at reduced size to minimize token usage
-    // Claude processes images at max 1568px, so 1200px wide is plenty
-    const buffer = await iframeEl.screenshot({ type: "jpeg", quality: 80, scale: "css" });
+    // Capture full-page screenshot from inside the iframe frame
+    const frame = await iframeEl.contentFrame();
+    let buffer: Buffer;
+    if (frame) {
+      // Use CDP on the iframe's frame to get full page screenshot
+      try {
+        const cdp = await this.page!.context().newCDPSession(await frame.page()!);
+        // Get the frame tree to find the iframe's frameId
+        const { frameTree } = await cdp.send("Page.getFrameTree");
+        const findFrame = (tree: any): string | null => {
+          if (tree.frame.url === frame.url()) return tree.frame.id;
+          for (const child of tree.childFrames || []) {
+            const found = findFrame(child);
+            if (found) return found;
+          }
+          return null;
+        };
+        const frameId = findFrame(frameTree);
+
+        // Get full page dimensions from inside the iframe
+        const metrics = await frame.evaluate(() => ({
+          width: Math.max(document.documentElement.scrollWidth, document.documentElement.clientWidth),
+          height: Math.max(document.documentElement.scrollHeight, document.documentElement.clientHeight),
+        }));
+
+        // Cap height to avoid massive screenshots (max ~4000px)
+        const captureHeight = Math.min(metrics.height, 4000);
+
+        // Take full page screenshot via CDP
+        const clip = { x: 0, y: 0, width: metrics.width, height: captureHeight, scale: 1 };
+        const result = await cdp.send("Page.captureScreenshot", {
+          format: "jpeg",
+          quality: 75,
+          clip,
+          captureBeyondViewport: true,
+        });
+        await cdp.detach();
+        buffer = Buffer.from(result.data, "base64");
+      } catch {
+        // Fallback to element screenshot
+        buffer = await iframeEl.screenshot({ type: "jpeg", quality: 80, scale: "css" });
+      }
+    } else {
+      buffer = await iframeEl.screenshot({ type: "jpeg", quality: 80, scale: "css" });
+    }
 
     // Restore hidden state
     if (wasHidden) {
