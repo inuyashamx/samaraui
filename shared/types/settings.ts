@@ -12,7 +12,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   fontSize: 13,
-  defaultModel: "claude-sonnet-4-6",
+  defaultModel: "claude-opus-4-6-20250624",
   defaultPermissionMode: "bypassPermissions",
   apiKey: null,
   proxyUrl: null,

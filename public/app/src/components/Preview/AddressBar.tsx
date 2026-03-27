@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAppStore } from "@/store/appStore";
+import { setPreviewTarget } from "@/lib/api";
 
 interface AddressBarProps {
   tabId: string;
@@ -49,19 +50,37 @@ export default function AddressBar({ tabId, iframeRef }: AddressBarProps) {
     }
   };
 
+  const resetPreview = async () => {
+    // Clear the iframe first to stop any pending loads
+    if (iframeRef.current) {
+      iframeRef.current.src = "about:blank";
+    }
+    // Clear the proxy on the server
+    await setPreviewTarget("");
+    // Clear the tab state so iframe unmounts
+    updateTab(tabId, { previewUrl: null, previewRoute: "/" });
+  };
+
   const startEditUrl = () => {
     setUrlInput(tab.previewUrl || "");
     setEditingUrl(true);
   };
 
-  const applyUrl = () => {
+  const applyUrl = async () => {
     let url = urlInput.trim();
     if (url && !url.match(/^https?:\/\//)) url = `http://${url}`;
-    if (url) {
-      updateTab(tabId, { previewUrl: url });
-      import("@/lib/api").then((m) => m.setPreviewTarget(url));
-    }
     setEditingUrl(false);
+    if (!url) return;
+    // Switch the proxy FIRST, before rendering the iframe
+    await setPreviewTarget(url);
+    // Now safe to set previewUrl (which renders the iframe) and force reload
+    updateTab(tabId, { previewUrl: url, previewRoute: "/" });
+    // Wait for React to render the iframe, then force-reload it
+    requestAnimationFrame(() => {
+      if (iframeRef.current) {
+        iframeRef.current.src = "/";
+      }
+    });
   };
 
   return (
@@ -109,6 +128,15 @@ export default function AddressBar({ tabId, iframeRef }: AddressBarProps) {
       <button className="px-1.5 py-0.5 text-gray-500 hover:text-white" onClick={openExternal} title="Open in browser">
         &#8599;
       </button>
+      {tab.previewUrl && (
+        <button
+          className="px-1.5 py-0.5 text-gray-500 hover:text-red-400"
+          onClick={resetPreview}
+          title="Reset preview (clear proxy and URL)"
+        >
+          &#10005;
+        </button>
+      )}
 
       {editingUrl ? (
         <div className="flex gap-1">
