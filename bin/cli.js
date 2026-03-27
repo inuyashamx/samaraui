@@ -2,7 +2,7 @@
 
 // This wrapper re-spawns node with tsx loaded via --import.
 // We resolve tsx/esm relative to THIS package (not the user's cwd)
-// so it works when samara-ui is installed globally or via npm link.
+// so it works when samara is installed globally or via npm link.
 
 import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";

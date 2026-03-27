@@ -1,11 +1,11 @@
 {
-  "name": "samara-ui",
-  "version": "0.1.0",
+  "name": "samara",
+  "version": "0.2.0",
   "description": "A web UI for Claude Code - chat with agents and preview their work in real-time",
   "main": "server/index.ts",
   "type": "module",
   "bin": {
-    "samara-ui": "./bin/cli.js"
+    "samara": "./bin/cli.js"
   },
   "scripts": {
     "dev": "concurrently \"tsx server/index.ts\" \"cd public/app && npx vite\"",

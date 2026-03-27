@@ -4,9 +4,9 @@ import { startServer } from "../server/index.ts";
 const program = new Command();
 
 program
-  .name("samara-ui")
+  .name("samara")
   .description("Web UI for Claude Code")
-  .version("0.1.0")
+  .version("0.2.0")
   .argument("[directory]", "Working directory for agents", process.cwd())
   .option("-p, --port <port>", "Port to run on", "3000")
   .option("--no-open", "Don't open browser automatically")

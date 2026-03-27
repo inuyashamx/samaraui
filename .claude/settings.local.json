@@ -61,7 +61,9 @@
       "Bash(curl -s http://localhost:3000/)",
       "Bash(curl -s http://localhost:8081/)",
       "Bash(npx tsc:*)",
-      "Bash(powershell.exe -NoProfile -NonInteractive -Command \"Add-Type -AssemblyName System.Windows.Forms; \\\\$f = New-Object System.Windows.Forms.FolderBrowserDialog; \\\\$f.Description = 'Select project folder'; \\\\$f.ShowNewFolderButton = \\\\$false; if \\(\\\\$f.ShowDialog\\(\\) -eq 'OK'\\) { \\\\$f.SelectedPath } else { 'CANCELLED' }\" 2>&1)"
+      "Bash(powershell.exe -NoProfile -NonInteractive -Command \"Add-Type -AssemblyName System.Windows.Forms; \\\\$f = New-Object System.Windows.Forms.FolderBrowserDialog; \\\\$f.Description = 'Select project folder'; \\\\$f.ShowNewFolderButton = \\\\$false; if \\(\\\\$f.ShowDialog\\(\\) -eq 'OK'\\) { \\\\$f.SelectedPath } else { 'CANCELLED' }\" 2>&1)",
+      "Bash(samara --version)",
+      "Bash(samara --help)"
     ]
   }
 }

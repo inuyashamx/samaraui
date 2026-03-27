@@ -385,7 +385,7 @@ export default function MenuBar() {
       { label: "Keyboard Shortcuts", shortcut: "Ctrl+/", action: () => { setShowShortcuts(true); setActiveMenu(null); } },
       { label: "", separator: true },
       {
-        label: "About Samara UI",
+        label: "About Samara",
         action: () => setShowAbout(true),
       },
     ],
@@ -474,10 +474,10 @@ export default function MenuBar() {
       </div>
 
       {/* About Modal */}
-      <Modal open={showAbout} onClose={() => setShowAbout(false)} title="About Samara UI">
+      <Modal open={showAbout} onClose={() => setShowAbout(false)} title="About Samara">
         <div className="text-center space-y-2">
           <img src="/_app/logo.png" alt="Samara" className="w-10 h-10 mx-auto" />
-          <div className="text-white font-medium">Samara UI v0.1.0</div>
+          <div className="text-white font-medium">Samara v0.2.0</div>
           <div className="text-gray-400 text-xs">Web UI for Claude Code</div>
           <a
             href="https://github.com/anthropics/claude-code"
