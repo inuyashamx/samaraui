@@ -28,6 +28,18 @@ export default function ChatMessage({ message }: { message: Message }) {
       <div className="px-4 py-3 bg-surface-1 rounded-lg mx-3 my-2">
         <div className="text-xs text-gray-500 mb-1 font-medium">You</div>
         <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+        {message.images && message.images.length > 0 && (
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {message.images.map((img, i) => (
+              <img
+                key={i}
+                src={`data:${img.mimeType};base64,${img.data}`}
+                alt=""
+                className="max-h-48 rounded border border-border"
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

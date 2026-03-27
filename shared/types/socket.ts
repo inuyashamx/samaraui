@@ -6,6 +6,7 @@ export interface AgentStartPayload {
   maxBudget?: number;
   permissionMode?: string;
   sessionId?: string;
+  images?: Array<{ data: string; mimeType: string }>;
 }
 
 export interface AgentInitPayload {

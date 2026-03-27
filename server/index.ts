@@ -512,22 +512,22 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   io.on("connection", (socket: Socket) => {
     console.log("  Client connected");
 
-    socket.on("agent:start", ({ agentId, prompt, model }: { agentId: string; prompt: string; model?: string }) => {
+    socket.on("agent:start", ({ agentId, prompt, model, images }: { agentId: string; prompt: string; model?: string; images?: Array<{ data: string; mimeType: string }> }) => {
       if (!agentManager) {
         socket.emit("agent:error", { agentId, error: "No working directory selected" });
         return;
       }
-      console.log(`  Agent ${agentId} started${model ? ` (${model})` : ""}`);
-      agentManager.runAgent(agentId, prompt, socket, false, undefined, model);
+      console.log(`  Agent ${agentId} started${model ? ` (${model})` : ""}${images?.length ? ` +${images.length} images` : ""}`);
+      agentManager.runAgent(agentId, prompt, socket, false, undefined, model, images);
     });
 
-    socket.on("agent:message", ({ agentId, prompt, sessionId, model }: { agentId: string; prompt: string; sessionId?: string; model?: string }) => {
+    socket.on("agent:message", ({ agentId, prompt, sessionId, model, images }: { agentId: string; prompt: string; sessionId?: string; model?: string; images?: Array<{ data: string; mimeType: string }> }) => {
       if (!agentManager) {
         socket.emit("agent:error", { agentId, error: "No working directory selected" });
         return;
       }
-      console.log(`  Agent ${agentId} continuing${model ? ` (${model})` : ""}`);
-      agentManager.runAgent(agentId, prompt, socket, true, sessionId, model);
+      console.log(`  Agent ${agentId} continuing${model ? ` (${model})` : ""}${images?.length ? ` +${images.length} images` : ""}`);
+      agentManager.runAgent(agentId, prompt, socket, true, sessionId, model, images);
     });
 
     socket.on("agent:interrupt", ({ agentId }: { agentId: string }) => {

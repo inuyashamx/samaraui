@@ -1,6 +1,6 @@
 import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import type { Socket } from "socket.io";
 import type PreviewBrowser from "./preview-browser.js";
@@ -373,7 +373,7 @@ class AgentManager {
     });
   }
 
-  async runAgent(agentId: string, prompt: string, socket: Socket, resume: boolean = false, clientSessionId?: string, model?: string): Promise<void> {
+  async runAgent(agentId: string, prompt: string, socket: Socket, resume: boolean = false, clientSessionId?: string, model?: string, images?: Array<{ data: string; mimeType: string }>): Promise<void> {
     const existing = this.agents.get(agentId);
     const sessionId = existing?.sessionId || clientSessionId || null;
 
@@ -415,8 +415,24 @@ class AgentManager {
       options.resume = sessionId;
     }
 
+    // Save attached images as temp files so the agent can Read them
+    let finalPrompt = prompt;
+    if (images && images.length > 0) {
+      const tmpDir = join(this.cwd, ".samara-tmp");
+      if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+      const imagePaths: string[] = [];
+      for (let i = 0; i < images.length; i++) {
+        const ext = images[i].mimeType.split("/")[1] || "png";
+        const filePath = join(tmpDir, `img-${Date.now()}-${i}.${ext}`);
+        writeFileSync(filePath, Buffer.from(images[i].data, "base64"));
+        imagePaths.push(filePath);
+      }
+      const imageList = imagePaths.map((p) => `- ${p}`).join("\n");
+      finalPrompt = `${prompt}\n\nThe user attached ${images.length} image(s). Read them with the Read tool to see them:\n${imageList}`;
+    }
+
     try {
-      for await (const message of query({ prompt, options })) {
+      for await (const message of query({ prompt: finalPrompt, options })) {
         switch ((message as any).type) {
           case "system": {
             if ((message as any).subtype === "init") {

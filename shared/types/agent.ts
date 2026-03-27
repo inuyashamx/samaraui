@@ -17,9 +17,15 @@ export interface Tab {
   lastTurns: number | null;
 }
 
+export interface ImageAttachment {
+  data: string; // base64
+  mimeType: string;
+}
+
 export interface Message {
   role: "user" | "assistant" | "tool" | "system";
   content: string;
+  images?: ImageAttachment[];
   toolUseId?: string;
   toolName?: string;
   toolInput?: unknown;
