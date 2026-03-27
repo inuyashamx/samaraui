@@ -1,15 +1,43 @@
-import { chromium, BrowserContext, Page, Frame } from "playwright";
+import { chromium, BrowserContext, Page, Frame, CDPSession } from "playwright";
 import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
+interface ConsoleEntry {
+  level: string;
+  text: string;
+  timestamp: number;
+  url?: string;
+  line?: number;
+}
+
+interface NetworkEntry {
+  method: string;
+  url: string;
+  status: number | null;
+  type: string;
+  duration: number | null;
+  error?: string;
+  timestamp: number;
+}
+
+const MAX_LOG_ENTRIES = 200;
+
 class PreviewBrowser {
   context: BrowserContext | null;
   page: Page | null;
+  private cdpSession: CDPSession | null;
+  private consoleLogs: ConsoleEntry[];
+  private networkLogs: NetworkEntry[];
+  private pendingRequests: Map<string, { method: string; url: string; type: string; timestamp: number }>;
 
   constructor() {
     this.context = null;
     this.page = null;
+    this.cdpSession = null;
+    this.consoleLogs = [];
+    this.networkLogs = [];
+    this.pendingRequests = new Map();
   }
 
   async launch(appUrl: string): Promise<void> {
@@ -38,6 +66,85 @@ class PreviewBrowser {
       await this.page.goto(appUrl, { waitUntil: "domcontentloaded" });
     }
     await this.page.waitForLoadState("domcontentloaded");
+
+    // Set up CDP listeners for console and network capture
+    await this._setupCdpListeners();
+  }
+
+  private async _setupCdpListeners(): Promise<void> {
+    if (!this.page) return;
+    try {
+      this.cdpSession = await this.page.context().newCDPSession(this.page);
+
+      // Console logs
+      await this.cdpSession.send("Runtime.enable");
+      this.cdpSession.on("Runtime.consoleAPICalled", (params: any) => {
+        const text = params.args
+          .map((a: any) => a.value ?? a.description ?? JSON.stringify(a))
+          .join(" ");
+        this.consoleLogs.push({
+          level: params.type,
+          text,
+          timestamp: Date.now(),
+        });
+        if (this.consoleLogs.length > MAX_LOG_ENTRIES) this.consoleLogs.shift();
+      });
+
+      // JS exceptions
+      this.cdpSession.on("Runtime.exceptionThrown", (params: any) => {
+        const desc = params.exceptionDetails?.exception?.description
+          || params.exceptionDetails?.text
+          || "Unknown error";
+        this.consoleLogs.push({
+          level: "error",
+          text: desc,
+          timestamp: Date.now(),
+          url: params.exceptionDetails?.url,
+          line: params.exceptionDetails?.lineNumber,
+        });
+        if (this.consoleLogs.length > MAX_LOG_ENTRIES) this.consoleLogs.shift();
+      });
+
+      // Network
+      await this.cdpSession.send("Network.enable");
+      this.cdpSession.on("Network.requestWillBeSent", (params: any) => {
+        this.pendingRequests.set(params.requestId, {
+          method: params.request.method,
+          url: params.request.url,
+          type: params.type || "Other",
+          timestamp: Date.now(),
+        });
+      });
+
+      this.cdpSession.on("Network.responseReceived", (params: any) => {
+        const req = this.pendingRequests.get(params.requestId);
+        if (req) {
+          this.networkLogs.push({
+            ...req,
+            status: params.response.status,
+            duration: Date.now() - req.timestamp,
+          });
+          this.pendingRequests.delete(params.requestId);
+          if (this.networkLogs.length > MAX_LOG_ENTRIES) this.networkLogs.shift();
+        }
+      });
+
+      this.cdpSession.on("Network.loadingFailed", (params: any) => {
+        const req = this.pendingRequests.get(params.requestId);
+        if (req) {
+          this.networkLogs.push({
+            ...req,
+            status: null,
+            duration: Date.now() - req.timestamp,
+            error: params.errorText || "Failed",
+          });
+          this.pendingRequests.delete(params.requestId);
+          if (this.networkLogs.length > MAX_LOG_ENTRIES) this.networkLogs.shift();
+        }
+      });
+    } catch (err) {
+      console.error("  CDP listener setup failed:", err);
+    }
   }
 
   async _getPreviewFrame(agentId: string): Promise<Frame | null> {
@@ -150,6 +257,19 @@ class PreviewBrowser {
     }
   }
 
+  async scroll(agentId: string, direction: "up" | "down", amount?: number): Promise<string> {
+    const frame = await this._getPreviewFrame(agentId);
+    if (!frame) return "No preview frame found for this agent";
+    try {
+      const pixels = amount || 500;
+      const delta = direction === "down" ? pixels : -pixels;
+      await frame.evaluate((d: number) => window.scrollBy(0, d), delta);
+      return `Scrolled ${direction} by ${pixels}px`;
+    } catch (err: any) {
+      return `Scroll failed: ${err.message}`;
+    }
+  }
+
   async getUrl(agentId: string): Promise<string> {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "/";
@@ -171,6 +291,42 @@ class PreviewBrowser {
       return html;
     } catch (err: any) {
       return `Failed: ${err.message}`;
+    }
+  }
+
+  getConsoleLogs(level?: string, clear: boolean = false): ConsoleEntry[] {
+    let logs = this.consoleLogs;
+    if (level) logs = logs.filter((l) => l.level === level);
+    const result = [...logs];
+    if (clear) {
+      if (level) {
+        this.consoleLogs = this.consoleLogs.filter((l) => l.level !== level);
+      } else {
+        this.consoleLogs = [];
+      }
+    }
+    return result;
+  }
+
+  getNetworkLogs(options?: { errorsOnly?: boolean; clear?: boolean }): NetworkEntry[] {
+    let logs = this.networkLogs;
+    if (options?.errorsOnly) logs = logs.filter((l) => l.error || (l.status && l.status >= 400));
+    const result = [...logs];
+    if (options?.clear) this.networkLogs = [];
+    return result;
+  }
+
+  async clearCache(): Promise<void> {
+    if (!this.context) return;
+    // Clear all browser caches, cookies, and storage
+    await this.context.clearCookies();
+    // Clear cache via CDP session
+    for (const page of this.context.pages()) {
+      try {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Network.clearBrowserCache");
+        await cdp.detach();
+      } catch {}
     }
   }
 
