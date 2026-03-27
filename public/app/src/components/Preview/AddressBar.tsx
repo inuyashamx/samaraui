@@ -5,9 +5,11 @@ import { setPreviewTarget } from "@/lib/api";
 interface AddressBarProps {
   tabId: string;
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
+  picking?: boolean;
+  onTogglePicker?: () => void;
 }
 
-export default function AddressBar({ tabId, iframeRef }: AddressBarProps) {
+export default function AddressBar({ tabId, iframeRef, picking, onTogglePicker }: AddressBarProps) {
   const tab = useAppStore((s) => s.tabs.find((t) => t.id === tabId));
   const updateTab = useAppStore((s) => s.updateTab);
   const [editingUrl, setEditingUrl] = useState(false);
@@ -101,6 +103,16 @@ export default function AddressBar({ tabId, iframeRef }: AddressBarProps) {
         }}
         placeholder="/"
       />
+
+      {onTogglePicker && (
+        <button
+          className={`px-1.5 py-0.5 ${picking ? "text-accent" : "text-gray-500 hover:text-white"}`}
+          onClick={onTogglePicker}
+          title={picking ? "Cancel element picker" : "Pick an element"}
+        >
+          &#9781;
+        </button>
+      )}
 
       <button
         className="px-1.5 py-0.5 text-gray-500 hover:text-white"
