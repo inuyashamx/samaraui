@@ -61,9 +61,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeTabId: "",
 
   addTab: (name?: string) => {
-    tabCounter++;
+    // Find the lowest available agent number
+    const existing = get().tabs.map((t) => {
+      const m = t.name.match(/^Agent (\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    });
+    let num = 1;
+    while (existing.includes(num)) num++;
+    tabCounter = Math.max(tabCounter, num);
     const id = `agent-${Date.now()}`;
-    const tab = createDefaultTab(id, name || `Agent ${tabCounter}`);
+    const tab = createDefaultTab(id, name || `Agent ${num}`);
     set((s) => ({
       tabs: [...s.tabs, tab],
       activeTabId: id,
