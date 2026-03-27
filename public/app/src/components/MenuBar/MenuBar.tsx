@@ -7,7 +7,6 @@ import Modal from "@/components/Common/Modal";
 import CommandPalette from "@/components/Common/CommandPalette";
 
 const MODEL_OPTIONS = [
-  "claude-opus-4-6-20250624",
   "claude-opus-4-6",
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
@@ -383,7 +382,7 @@ export default function MenuBar() {
       },
       { label: "", separator: true },
       { label: "General", action: () => { togglePanel("settings"); setActiveMenu(null); } },
-      disabled("Keyboard Shortcuts"),
+      { label: "Keyboard Shortcuts", shortcut: "Ctrl+/", action: () => { setShowShortcuts(true); setActiveMenu(null); } },
       { label: "", separator: true },
       {
         label: "About Samara UI",
@@ -395,11 +394,6 @@ export default function MenuBar() {
         label: "Documentation",
         action: () =>
           window.open("https://docs.anthropic.com/en/docs/claude-code"),
-      },
-      {
-        label: "Keyboard Shortcuts",
-        shortcut: "Ctrl+/",
-        action: () => setShowShortcuts(true),
       },
       { label: "", separator: true },
       {
@@ -507,14 +501,16 @@ export default function MenuBar() {
             {[
               ["Ctrl+T", "New Agent Tab"],
               ["Ctrl+W", "Close Tab"],
+              ["Ctrl+O", "Open Folder"],
               ["Ctrl+1", "Toggle Chat Panel"],
               ["Ctrl+2", "Toggle Preview Panel"],
               ["Ctrl+L", "Focus Chat Input"],
-              ["Ctrl+=", "Preview Zoom In"],
-              ["Ctrl+-", "Preview Zoom Out"],
-              ["Ctrl+0", "Preview Zoom Reset"],
               ["Ctrl+K", "Command Palette"],
               ["Ctrl+/", "Keyboard Shortcuts"],
+              ["Ctrl+S", "Save (in editors)"],
+              ["Ctrl+V", "Paste image from clipboard"],
+              ["Enter", "Send message"],
+              ["Shift+Enter", "New line in message"],
               ["Esc", "Interrupt Agent"],
             ].map(([key, desc]) => (
               <tr key={key} className="border-b border-border last:border-0">
