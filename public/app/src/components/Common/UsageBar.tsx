@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useAppStore } from "@/store/appStore";
 import { fetchUsage } from "@/lib/api";
 
@@ -30,25 +30,53 @@ interface UsageEntry {
 export default function UsageBar() {
   const usage = useAppStore((s) => s.usage);
   const setUsage = useAppStore((s) => s.setUsage);
+  const tabs = useAppStore((s) => s.tabs);
+  const prevRunning = useRef(false);
 
-  useEffect(() => {
-    const load = async () => {
+  const load = useCallback(async () => {
+    try {
       const data = await fetchUsage();
       if (data && !data.error) setUsage(data);
-    };
-    load();
-    const interval = setInterval(load, 60000);
-    return () => clearInterval(interval);
+    } catch {}
   }, [setUsage]);
 
-  if (!usage) return null;
+  // Poll every 30s
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  // Refresh when any agent finishes (running -> idle/error)
+  useEffect(() => {
+    const anyRunning = tabs.some((t) => t.status === "running");
+    if (prevRunning.current && !anyRunning) {
+      // Agent just finished — refresh after short delay for API to update
+      setTimeout(load, 2000);
+    }
+    prevRunning.current = anyRunning;
+  }, [tabs, load]);
+
+  if (!usage) {
+    return (
+      <div className="flex items-center px-3 text-xs text-gray-600 shrink-0">
+        Usage: --
+      </div>
+    );
+  }
 
   const entries: { label: string; entry: UsageEntry }[] = [];
   const u = usage as any;
   if (u.five_hour) entries.push({ label: "5h", entry: u.five_hour });
   if (u.seven_day) entries.push({ label: "7d", entry: u.seven_day });
 
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return (
+      <div className="flex items-center px-3 text-xs text-gray-600 shrink-0">
+        Usage: --
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-3 px-3 text-xs shrink-0">
