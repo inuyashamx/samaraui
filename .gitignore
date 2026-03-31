@@ -1,4 +1,25 @@
-public/app/dist/
-public/app/node_modules/
 node_modules/
+public/app/node_modules/
+public/app/dist/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Samara runtime
+.samara-tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Superpowers
 .superpowers/

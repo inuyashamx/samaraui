@@ -45,9 +45,12 @@ class PreviewBrowser {
     const userDataDir = join(homedir(), ".samara", "browser-profile");
     if (!existsSync(userDataDir)) mkdirSync(userDataDir, { recursive: true });
 
+    // Use Edge on Windows/macOS if available, default Chromium on Linux
+    const channel = process.platform === "linux" ? undefined : "msedge";
+
     this.context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
-      channel: "msedge",
+      ...(channel ? { channel } : {}),
       viewport: null,
       args: [
         "--app=" + appUrl,

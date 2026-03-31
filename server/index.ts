@@ -71,15 +71,21 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
 
   app.get("/api/home", (req: Request, res: Response) => {
     const home = homedir();
-    const desktop = join(home, "Desktop");
-    const onedrive = join(home, "OneDrive", "Escritorio");
-    const docs = join(home, "Documents");
+    const candidates = [
+      home,
+      join(home, "Desktop"),
+      join(home, "Documents"),
+      join(home, "Projects"),
+      join(home, "OneDrive", "Desktop"),
+      join(home, "OneDrive", "Escritorio"),
+      join(home, "OneDrive", "Documents"),
+    ];
     const suggestions: string[] = [];
-    for (const p of [home, desktop, onedrive, docs]) {
+    for (const p of candidates) {
       try { if (statSync(p).isDirectory()) suggestions.push(p); } catch {}
     }
     const projectDirs: { name: string; path: string }[] = [];
-    for (const base of [desktop, onedrive, join(onedrive, "Projects")]) {
+    for (const base of suggestions.filter((s) => s !== home)) {
       try {
         const entries = readdirSync(base, { withFileTypes: true });
         for (const e of entries) {
@@ -276,13 +282,17 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     const targetDir = dir || currentCwd;
     try {
       if (type === "terminal") {
-        const { exec } = await import("child_process");
-        if (process.platform === "win32") exec(`start cmd /K "cd /d ${targetDir}"`);
-        else if (process.platform === "darwin") exec(`open -a Terminal "${targetDir}"`);
-        else exec(`x-terminal-emulator --working-directory="${targetDir}" || xterm -e "cd ${targetDir} && bash"`);
+        const { execFile } = await import("child_process");
+        if (process.platform === "win32") execFile("cmd.exe", ["/K", `cd /d "${targetDir}"`]);
+        else if (process.platform === "darwin") execFile("open", ["-a", "Terminal", targetDir]);
+        else execFile("x-terminal-emulator", ["--working-directory", targetDir], (err) => {
+          if (err) execFile("gnome-terminal", ["--working-directory", targetDir], (err2) => {
+            if (err2) execFile("xterm", ["-e", `cd "${targetDir}" && bash`]);
+          });
+        });
       } else if (type === "vscode") {
-        const { exec } = await import("child_process");
-        exec(`code "${targetDir}"`);
+        const { execFile } = await import("child_process");
+        execFile("code", [targetDir]);
       }
       res.json({ ok: true });
     } catch (err: any) {
@@ -540,7 +550,9 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
 
     socket.on("terminal:start", () => {
       if (termProcess) return;
-      const shell = process.platform === "win32" ? "cmd.exe" : "bash";
+      const shell = process.platform === "win32"
+        ? (process.env.COMSPEC || "cmd.exe")
+        : (process.env.SHELL || "/bin/sh");
       termProcess = spawn(shell, [], {
         cwd: currentCwd,
         env: { ...process.env, TERM: "xterm-256color" },
