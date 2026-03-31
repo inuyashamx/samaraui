@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import { getSocket } from "@/lib/socket";
+import { setPreviewTarget } from "@/lib/api";
 import AddressBar from "./AddressBar";
 
 function buildSelector(el: Element): string {
@@ -27,6 +28,46 @@ function describeElement(el: Element): string {
   const cls = el.className && typeof el.className === "string"
     ? ` class="${el.className.trim().slice(0, 80)}"` : "";
   return `[Element: <${tag}${id}${cls}> selector="${selector}" text="${text}"]`;
+}
+
+function NoPreviewPlaceholder({ tabId }: { tabId: string }) {
+  const [url, setUrl] = useState("");
+  const updateTab = useAppStore((s) => s.updateTab);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    let normalized = url.trim();
+    if (!normalized) return;
+    if (!/^https?:\/\//.test(normalized)) normalized = `http://${normalized}`;
+    updateTab(tabId, { previewUrl: normalized, previewRoute: "/" });
+    setPreviewTarget(normalized);
+  };
+
+  return (
+    <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+      <div className="text-center">
+        <div className="text-lg mb-2">No preview</div>
+        <div className="text-xs text-gray-700 mb-4">
+          Enter your dev server URL or start the agent and it will auto-detect it
+        </div>
+        <form onSubmit={handleSubmit} className="flex gap-2 justify-center">
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="http://localhost:5173"
+            className="bg-surface-2 border border-border rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-accent placeholder-gray-600 w-56"
+          />
+          <button
+            type="submit"
+            className="px-3 py-1.5 bg-accent hover:bg-accent-light text-black text-sm font-medium rounded-lg transition-colors"
+          >
+            Open
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export default function PreviewPanel({ tabId }: { tabId: string }) {
@@ -146,16 +187,7 @@ export default function PreviewPanel({ tabId }: { tabId: string }) {
             )}
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-            <div className="text-center">
-              <div className="text-lg mb-1">No preview</div>
-              <div className="text-xs text-gray-700">
-                Start the agent and it will auto-detect your dev server,
-                <br />
-                or set a URL manually from the address bar
-              </div>
-            </div>
-          </div>
+          <NoPreviewPlaceholder tabId={tabId} />
         )}
       </div>
     </div>
