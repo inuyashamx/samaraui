@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import { fetchUsage } from "@/lib/api";
 
@@ -31,7 +31,6 @@ export default function UsageBar() {
   const usage = useAppStore((s) => s.usage);
   const setUsage = useAppStore((s) => s.setUsage);
   const tabs = useAppStore((s) => s.tabs);
-  const prevRunning = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -40,22 +39,18 @@ export default function UsageBar() {
     } catch {}
   }, [setUsage]);
 
-  // Poll every 30s
+  // Load on mount
   useEffect(() => {
     load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
   }, [load]);
 
-  // Refresh when any agent finishes (running -> idle/error)
+  // Refresh when any agent finishes (status becomes idle or error)
   useEffect(() => {
-    const anyRunning = tabs.some((t) => t.status === "running");
-    if (prevRunning.current && !anyRunning) {
-      // Agent just finished — refresh after short delay for API to update
-      setTimeout(load, 2000);
+    const allDone = tabs.every((t) => t.status !== "running");
+    if (allDone && tabs.length > 0) {
+      load();
     }
-    prevRunning.current = anyRunning;
-  }, [tabs, load]);
+  }, [tabs.map((t) => t.status).join(",")]);
 
   if (!usage) {
     return (

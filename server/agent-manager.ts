@@ -268,7 +268,7 @@ class AgentManager {
       mcpServers: {
         "preview-tools": previewServer,
       },
-      ...(model ? { model } : {}),
+      model: model || "claude-sonnet-4-6",
     };
 
     if (resume && sessionId) {
