@@ -82,33 +82,11 @@ You type a prompt, an agent writes the code, and you see the result update live 
 - **Node.js** >= 18
 - **Claude Code** authenticated (`claude` CLI must be logged in — SamaraUI uses your existing OAuth credentials)
 
-### Install from npm
-
 ```bash
 npm install -g samaraui
 ```
 
-### Or install from source
-
-```bash
-git clone https://github.com/InuYashaMX/samara.git
-cd samara
-npm install && cd public/app && npm install && cd ../..
-npm run build
-npm link
-```
-
-### Verify
-
-```bash
-samaraui --version
-```
-
----
-
-## Usage
-
-Open SamaraUI in any project directory:
+Then open it in any project:
 
 ```bash
 cd your-project
@@ -220,6 +198,17 @@ Agent sessions are persisted in `~/.samaraui/sessions/` and restored on restart.
 
 ---
 
+## Install from source
+
+```bash
+git clone https://github.com/InuYashaMX/samara.git
+cd samara
+npm install && cd public/app && npm install && cd ../..
+npm run build
+npm link
+samaraui --version
+```
+
 ## Development
 
 If you want to contribute or hack on SamaraUI:
@@ -234,7 +223,7 @@ npm run dev
 This starts the Express server and Vite dev server concurrently with hot reload.
 
 - Frontend: `http://localhost:4828` (HMR)
-- Server: `http://localhost:3000`
+- Server: `http://localhost:4827`
 
 Contributions are welcome. Please open an issue first to discuss what you'd like to change.
 
