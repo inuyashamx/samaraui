@@ -245,6 +245,7 @@ export default function ChatInput({ tabId }: { tabId: string }) {
               <path d="M2 11l3-3 2 2 3-3 4 4" />
             </svg>
           </button>
+          {/* Voice input — hidden for now
           {hasSpeechSupport && (
             <button
               className={`px-2 py-2 text-sm rounded-lg border transition-colors ${
@@ -263,6 +264,7 @@ export default function ChatInput({ tabId }: { tabId: string }) {
               </svg>
             </button>
           )}
+          */}
           {isRunning ? (
             <button
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg shrink-0 transition-colors"
