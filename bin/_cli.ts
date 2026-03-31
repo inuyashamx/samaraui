@@ -8,7 +8,7 @@ program
   .description("Web UI for Claude Code")
   .version("0.2.0")
   .argument("[directory]", "Working directory for agents", process.cwd())
-  .option("-p, --port <port>", "Port to run on", "3000")
+  .option("-p, --port <port>", "Port to run on", "4827")
   .option("--no-open", "Don't open browser automatically")
   .action(async (directory, options) => {
     const port = parseInt(options.port);

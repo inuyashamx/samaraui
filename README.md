@@ -137,7 +137,7 @@ Arguments:
   directory                Working directory for agents (default: current directory)
 
 Options:
-  -p, --port <port>        Port to run on (default: 3000)
+  -p, --port <port>        Port to run on (default: 4827)
   --no-open                Don't open browser automatically
   -V, --version            Output version number
   -h, --help               Display help
