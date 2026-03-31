@@ -206,11 +206,12 @@ class PreviewBrowser {
           height: Math.max(document.documentElement.scrollHeight, document.documentElement.clientHeight),
         }));
 
-        // Cap height to avoid massive screenshots (max ~4000px)
+        // Cap dimensions to stay under API limit (max 7680px per side)
+        const captureWidth = Math.min(metrics.width, 7680);
         const captureHeight = Math.min(metrics.height, 4000);
 
         // Take full page screenshot via CDP
-        const clip = { x: 0, y: 0, width: metrics.width, height: captureHeight, scale: 1 };
+        const clip = { x: 0, y: 0, width: captureWidth, height: captureHeight, scale: 1 };
         const result = await cdp.send("Page.captureScreenshot", {
           format: "jpeg",
           quality: 75,
