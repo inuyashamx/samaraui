@@ -42,7 +42,7 @@ class PreviewBrowser {
 
   async launch(appUrl: string): Promise<void> {
     // Persistent profile so localStorage, cache, cookies survive restarts
-    const userDataDir = join(homedir(), ".samara", "browser-profile");
+    const userDataDir = join(homedir(), ".samaraui", "browser-profile");
     if (!existsSync(userDataDir)) mkdirSync(userDataDir, { recursive: true });
 
     // Use Edge on Windows/macOS if available, default Chromium on Linux

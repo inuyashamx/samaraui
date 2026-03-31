@@ -278,7 +278,7 @@ class AgentManager {
     // Save attached images as temp files so the agent can Read them
     let finalPrompt = prompt;
     if (images && images.length > 0) {
-      const tmpDir = join(this.cwd, ".samara-tmp");
+      const tmpDir = join(this.cwd, ".samaraui-tmp");
       if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
       const imagePaths: string[] = [];
       for (let i = 0; i < images.length; i++) {

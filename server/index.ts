@@ -159,7 +159,7 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
   });
 
   // ── State persistence ──
-  const stateDir = join(homedir(), ".samara", "sessions");
+  const stateDir = join(homedir(), ".samaraui", "sessions");
 
   function stateFile(dir: string): string {
     const hash = createHash("md5").update(dir).digest("hex").slice(0, 12);
@@ -241,7 +241,7 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
 
       if (process.platform === "win32") {
         // Write a temp .ps1 script to avoid escaping issues and ensure dialog is topmost
-        const scriptDir = join(homedir(), ".samara");
+        const scriptDir = join(homedir(), ".samaraui");
         if (!existsSync(scriptDir)) mkdirSync(scriptDir, { recursive: true });
         const tmpScript = join(scriptDir, "pick-folder.ps1");
         writeFileSync(tmpScript, [

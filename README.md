@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Samara" width="120" />
+  <img src="docs/assets/logo.png" alt="SamaraUI" width="120" />
 </p>
 
-<h1 align="center">Samara</h1>
+<h1 align="center">SamaraUI</h1>
 
 <p align="center">
   <strong>A web-based UI for Claude Code agents with live preview</strong>
@@ -28,14 +28,14 @@
 
 ---
 
-## What is Samara?
+## What is SamaraUI?
 
-Samara gives Claude Code a visual interface. Instead of a terminal, you get a desktop-like workspace with chat panels, a live browser preview, and a full set of development tools — all powered by the [Claude Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk).
+SamaraUI gives Claude Code a visual interface. Instead of a terminal, you get a desktop-like workspace with chat panels, a live browser preview, and a full set of development tools — all powered by the [Claude Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk).
 
 You type a prompt, an agent writes the code, and you see the result update live in the preview panel. No copy-pasting, no manual refreshes.
 
 <!-- Add screenshot here -->
-<!-- ![Samara UI](docs/assets/screenshot.png) -->
+<!-- ![SamaraUI](docs/assets/screenshot.png) -->
 
 ---
 
@@ -80,15 +80,17 @@ You type a prompt, an agent writes the code, and you see the result update live 
 ### Prerequisites
 
 - **Node.js** >= 18
-- **Claude Code** authenticated (`claude` CLI must be logged in — Samara uses your existing OAuth credentials)
+- **Claude Code** authenticated (`claude` CLI must be logged in — SamaraUI uses your existing OAuth credentials)
 
-### Install globally
+### Install from npm
 
 ```bash
-# Install from npm (once published)
-npm install -g samara
+npm install -g samaraui
+```
 
-# Or install from source
+### Or install from source
+
+```bash
 git clone https://github.com/InuYashaMX/samara.git
 cd samara
 npm install && cd public/app && npm install && cd ../..
@@ -96,28 +98,40 @@ npm run build
 npm link
 ```
 
-That's it. Now you can use `samara` from anywhere:
+### Verify
 
 ```bash
-# Open Samara in the current directory
-samara
-
-# Open in a specific project
-samara ~/projects/my-app
-
-# Custom port
-samara --port 8080
-
-# Don't open browser automatically
-samara --no-open
+samaraui --version
 ```
 
-A browser window opens automatically with the full workspace.
+---
+
+## Usage
+
+Open SamaraUI in any project directory:
+
+```bash
+cd your-project
+samaraui
+```
+
+A browser window opens automatically with the full workspace. That's it.
+
+```bash
+# Open in a specific project
+samaraui ~/projects/my-app
+
+# Custom port
+samaraui --port 8080
+
+# Don't open browser automatically
+samaraui --no-open
+```
 
 ### CLI reference
 
 ```
-Usage: samara [options] [directory]
+Usage: samaraui [options] [directory]
 
 Arguments:
   directory                Working directory for agents (default: current directory)
@@ -129,11 +143,9 @@ Options:
   -h, --help               Display help
 ```
 
----
+### Workflow
 
-## Usage
-
-1. `cd` into your project and run `samara`
+1. Run `samaraui` in your project
 2. Type a prompt in the chat panel (e.g., "Add a login page with email and password")
 3. The agent reads your code, makes changes, and refreshes the preview
 4. You see the result live in the preview panel
@@ -145,27 +157,14 @@ The preview panel proxies your local dev server. When an agent detects a running
 
 ### Framework-specific instructions
 
-Samara works with any web project. For framework-specific instructions, add them to your project's `CLAUDE.md` file — agents read it automatically via the Claude Code SDK.
-
-### Development mode
-
-If you want to contribute or hack on Samara itself:
-
-```bash
-git clone https://github.com/InuYashaMX/samara.git
-cd samara
-npm install && cd public/app && npm install && cd ../..
-npm run dev
-```
-
-This starts the Express server and Vite dev server concurrently with hot reload.
+SamaraUI works with any web project. For framework-specific instructions, add them to your project's `CLAUDE.md` file — agents read it automatically via the Claude Code SDK.
 
 ---
 
 ## Architecture
 
 ```
-samara/
+samaraui/
 ├── bin/                    # CLI entry point
 │   ├── cli.js              # Node wrapper with tsx loader
 │   └── _cli.ts             # Commander.js CLI definition
@@ -210,35 +209,34 @@ samara/
 
 ## Configuration
 
-Samara respects your existing Claude Code configuration:
+SamaraUI respects your existing Claude Code configuration:
 
 - **`CLAUDE.md`** — project instructions (read by agents automatically)
 - **`.claude/settings.json`** — project settings
 - **`~/.claude/settings.json`** — user settings
 - **OAuth credentials** — from `~/.claude/.credentials.json` (set up via `claude` CLI)
 
-Agent sessions are persisted in `~/.samara/sessions/` and restored on restart.
+Agent sessions are persisted in `~/.samaraui/sessions/` and restored on restart.
 
 ---
 
-## Contributing
+## Development
 
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+If you want to contribute or hack on SamaraUI:
 
 ```bash
-# Fork and clone
-git clone https://github.com/<your-username>/samara.git
+git clone https://github.com/InuYashaMX/samara.git
 cd samara
-
-# Install everything
 npm install && cd public/app && npm install && cd ../..
-
-# Run in development mode
 npm run dev
-
-# The frontend runs on http://localhost:5173 with HMR
-# The server runs on http://localhost:3000
 ```
+
+This starts the Express server and Vite dev server concurrently with hot reload.
+
+- Frontend: `http://localhost:5173` (HMR)
+- Server: `http://localhost:3000`
+
+Contributions are welcome. Please open an issue first to discuss what you'd like to change.
 
 ---
 

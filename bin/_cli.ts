@@ -4,7 +4,7 @@ import { startServer } from "../server/index.ts";
 const program = new Command();
 
 program
-  .name("samara")
+  .name("samaraui")
   .description("Web UI for Claude Code")
   .version("0.2.0")
   .argument("[directory]", "Working directory for agents", process.cwd())
@@ -14,7 +14,7 @@ program
     const port = parseInt(options.port);
     const cwd = directory;
 
-    console.log(`\n  Samara Code UI`);
+    console.log(`\n  SamaraUI`);
     console.log(`  Working directory: ${cwd}`);
     console.log(`  Starting server on port ${port}...\n`);
 

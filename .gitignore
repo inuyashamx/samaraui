@@ -8,7 +8,7 @@ public/app/dist/
 .env.*.local
 
 # Samara runtime
-.samara-tmp/
+.samaraui-tmp/
 
 # OS files
 .DS_Store
