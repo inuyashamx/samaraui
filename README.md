@@ -201,8 +201,8 @@ Agent sessions are persisted in `~/.samaraui/sessions/` and restored on restart.
 ## Install from source
 
 ```bash
-git clone https://github.com/InuYashaMX/samara.git
-cd samara
+git clone https://github.com/inuyashamx/samaraui.git
+cd samaraui
 npm install && cd public/app && npm install && cd ../..
 npm run build
 npm link
@@ -214,8 +214,8 @@ samaraui --version
 If you want to contribute or hack on SamaraUI:
 
 ```bash
-git clone https://github.com/InuYashaMX/samara.git
-cd samara
+git clone https://github.com/inuyashamx/samaraui.git
+cd samaraui
 npm install && cd public/app && npm install && cd ../..
 npm run dev
 ```

@@ -32,7 +32,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/InuYashaMX/samara.git"
+    "url": "https://github.com/inuyashamx/samaraui.git"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
