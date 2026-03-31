@@ -34,8 +34,7 @@ SamaraUI gives Claude Code a visual interface. Instead of a terminal, you get a 
 
 You type a prompt, an agent writes the code, and you see the result update live in the preview panel. No copy-pasting, no manual refreshes.
 
-<!-- Add screenshot here -->
-<!-- ![SamaraUI](docs/assets/screenshot.png) -->
+![SamaraUI](public/screenshot.png)
 
 ---
 
