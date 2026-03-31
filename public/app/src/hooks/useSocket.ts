@@ -83,6 +83,11 @@ export function useSocket() {
       }
     });
 
+    socket.on("agent:usage", ({ agentId, inputTokens }) => {
+      const s = useAppStore.getState();
+      s.updateTab(agentId, { lastInputTokens: inputTokens });
+    });
+
     socket.on("agent:error", ({ agentId, error }) => {
       const s = useAppStore.getState();
       s.updateTab(agentId, { status: "error" });

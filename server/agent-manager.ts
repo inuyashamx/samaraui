@@ -268,7 +268,7 @@ class AgentManager {
       mcpServers: {
         "preview-tools": previewServer,
       },
-      model: model || "claude-sonnet-4-6",
+      model: model || "claude-opus-4-6",
     };
 
     if (resume && sessionId) {
@@ -311,7 +311,8 @@ class AgentManager {
           }
 
           case "assistant": {
-            const content = (message as any).message?.content || [];
+            const msg = (message as any).message;
+            const content = msg?.content || [];
             for (const block of content) {
               if (block.type === "text") {
                 socket.emit("agent:text", { agentId, text: block.text });
@@ -324,6 +325,16 @@ class AgentManager {
                   input: block.input,
                 });
               }
+            }
+            // Emit token usage per turn
+            if (msg?.usage) {
+              socket.emit("agent:usage", {
+                agentId,
+                inputTokens: msg.usage.input_tokens || 0,
+                outputTokens: msg.usage.output_tokens || 0,
+                cacheRead: msg.usage.cache_read_input_tokens || 0,
+                cacheCreation: msg.usage.cache_creation_input_tokens || 0,
+              });
             }
             break;
           }

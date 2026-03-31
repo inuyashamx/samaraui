@@ -132,6 +132,14 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                   <span className="text-gray-300">{activeTab.lastTurns}</span>
                 </div>
               )}
+              {activeTab.lastInputTokens != null && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Context</span>
+                  <span className={`${activeTab.lastInputTokens > 800000 ? "text-red-400" : activeTab.lastInputTokens > 500000 ? "text-amber-400" : "text-green-400"}`}>
+                    {Math.round(activeTab.lastInputTokens / 1000)}k / 1M
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-500">Messages</span>
                 <span className="text-gray-300">{activeTab.messages.length}</span>

@@ -15,6 +15,7 @@ export interface Tab {
   lastCost: number | null;
   lastDuration: number | null;
   lastTurns: number | null;
+  lastInputTokens: number | null;
 }
 
 export interface ImageAttachment {
@@ -54,5 +55,6 @@ export function createDefaultTab(id: string, name: string): Tab {
     lastCost: null,
     lastDuration: null,
     lastTurns: null,
+    lastInputTokens: null,
   };
 }

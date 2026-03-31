@@ -151,6 +151,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
               lastCost: null,
               lastDuration: null,
               lastTurns: null,
+              lastInputTokens: null,
             }
           : t
       ),

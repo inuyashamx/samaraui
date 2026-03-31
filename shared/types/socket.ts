@@ -51,6 +51,14 @@ export interface AgentResultPayload {
   sessionId: string;
 }
 
+export interface AgentUsagePayload {
+  agentId: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheRead: number;
+  cacheCreation: number;
+}
+
 export interface AgentErrorPayload {
   agentId: string;
   error: string;
@@ -72,6 +80,7 @@ export interface ServerToClientEvents {
   "agent:tool_result": (payload: AgentToolResultPayload) => void;
   "agent:tool_progress": (payload: AgentToolProgressPayload) => void;
   "agent:result": (payload: AgentResultPayload) => void;
+  "agent:usage": (payload: AgentUsagePayload) => void;
   "agent:error": (payload: AgentErrorPayload) => void;
   "preview:navigate": (payload: PreviewNavigatePayload) => void;
   "preview:refresh": (payload: PreviewRefreshPayload) => void;
