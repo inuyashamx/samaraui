@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 4828,
     proxy: {
       "/api": "http://localhost:4827",
       "/socket.io": {

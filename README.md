@@ -233,7 +233,7 @@ npm run dev
 
 This starts the Express server and Vite dev server concurrently with hot reload.
 
-- Frontend: `http://localhost:5173` (HMR)
+- Frontend: `http://localhost:4828` (HMR)
 - Server: `http://localhost:3000`
 
 Contributions are welcome. Please open an issue first to discuss what you'd like to change.
