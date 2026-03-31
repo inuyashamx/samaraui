@@ -28,5 +28,16 @@ export default defineConfig({
   base: "/_app/",
   build: {
     outDir: "dist",
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          markdown: ["marked", "highlight.js"],
+          terminal: ["xterm", "@xterm/addon-fit"],
+          state: ["zustand", "socket.io-client"],
+        },
+      },
+    },
   },
 });

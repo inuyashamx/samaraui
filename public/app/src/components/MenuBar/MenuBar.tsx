@@ -449,7 +449,6 @@ export default function MenuBar() {
         ref={barRef}
         className="flex items-center bg-surface border-b border-border shrink-0 select-none"
       >
-        <img src="/_app/logo.png" alt="Samara" className="w-4 h-4 ml-2 mr-1" />
         {menuKeys.map((key) => (
           <div key={key} className="relative">
             <button

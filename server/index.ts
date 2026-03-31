@@ -14,13 +14,13 @@ import PreviewBrowser from "./preview-browser.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export async function startServer({ port, cwd }: { port: number; cwd: string }): Promise<{ server: any; launchBrowser: (url: string) => Promise<void> }> {
+export async function startServer({ port, cwd, safe }: { port: number; cwd: string; safe?: boolean }): Promise<{ server: any; launchBrowser: (url: string) => Promise<void> }> {
   const app = express();
   const server = createServer(app);
   const io = new Server(server, { cors: { origin: "*" } });
 
   const resolvedCwd = resolve(cwd);
-  let agentManager: AgentManager | null = new AgentManager(resolvedCwd);
+  let agentManager: AgentManager | null = new AgentManager(resolvedCwd, safe);
   let currentCwd = resolvedCwd;
   let previewTarget: string | null = null;
   const previewBrowser = new PreviewBrowser();
@@ -219,7 +219,7 @@ export async function startServer({ port, cwd }: { port: number; cwd: string }):
     if (!newCwd) return res.status(400).json({ error: "cwd required" });
     const resolved = resolve(newCwd);
     currentCwd = resolved;
-    agentManager = new AgentManager(resolved);
+    agentManager = new AgentManager(resolved, safe);
     agentManager.setPreviewBrowser(previewBrowser);
     console.log(`  Working directory set: ${resolved}`);
     res.json({ cwd: resolved });

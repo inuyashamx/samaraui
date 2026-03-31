@@ -1,6 +1,6 @@
 import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import type { Socket } from "socket.io";
 import type PreviewBrowser from "./preview-browser.js";
@@ -47,12 +47,14 @@ interface AgentState {
 
 class AgentManager {
   cwd: string;
+  safe: boolean;
   agents: Map<string, AgentState>;
   previewBrowser: PreviewBrowser | null;
   previewBaseUrl: string | null;
 
-  constructor(cwd: string) {
+  constructor(cwd: string, safe?: boolean) {
     this.cwd = cwd;
+    this.safe = !!safe;
     this.agents = new Map();
     this.previewBrowser = null;
     this.previewBaseUrl = null;
@@ -263,8 +265,8 @@ class AgentManager {
         "Read", "Write", "Edit", "Bash", "Glob", "Grep",
         "WebSearch", "WebFetch", "Agent"
       ],
-      permissionMode: "bypassPermissions",
-      allowDangerouslySkipPermissions: true,
+      permissionMode: this.safe ? "acceptEdits" : "bypassPermissions",
+      ...(this.safe ? {} : { allowDangerouslySkipPermissions: true }),
       mcpServers: {
         "preview-tools": previewServer,
       },
@@ -394,7 +396,20 @@ class AgentManager {
         ...this.agents.get(agentId),
         status: "error",
       });
+    } finally {
+      // Clean up temp image files
+      this._cleanupTmp();
     }
+  }
+
+  private _cleanupTmp(): void {
+    const tmpDir = join(this.cwd, ".samaraui-tmp");
+    try {
+      if (!existsSync(tmpDir)) return;
+      for (const file of readdirSync(tmpDir)) {
+        try { unlinkSync(join(tmpDir, file)); } catch {}
+      }
+    } catch {}
   }
 
   interrupt(agentId: string): void {

@@ -60,10 +60,11 @@ const program = new Command();
 program
   .name("samaraui")
   .description("Web UI for Claude Code")
-  .version("0.2.2")
+  .version("0.3.0")
   .argument("[directory]", "Working directory for agents", process.cwd())
   .option("-p, --port <port>", "Port to run on", "4827")
   .option("--no-open", "Don't open browser automatically")
+  .option("--safe", "Ask before dangerous operations (file edits, bash commands)")
   .option("--skip-checks", "Skip prerequisite checks")
   .action(async (directory, options) => {
     const port = parseInt(options.port);
@@ -78,7 +79,10 @@ program
 
     console.log(`  Starting server on port ${port}...`);
 
-    const { server, launchBrowser } = await startServer({ port, cwd });
+    const safe = !!options.safe;
+    if (safe) console.log("  Safe mode: agents will ask before edits and commands\n");
+
+    const { server, launchBrowser } = await startServer({ port, cwd, safe });
 
     const url = `http://localhost:${port}/_app/`;
     console.log(`  Ready at ${url}\n`);
