@@ -82,66 +82,39 @@ You type a prompt, an agent writes the code, and you see the result update live 
 - **Node.js** >= 18
 - **Claude Code** authenticated (`claude` CLI must be logged in — Samara uses your existing OAuth credentials)
 
-### Quick start
+### Install globally
 
 ```bash
-# Clone the repository
+# Install from npm (once published)
+npm install -g samara
+
+# Or install from source
 git clone https://github.com/InuYashaMX/samara.git
 cd samara
-
-# Install dependencies
-npm install
-cd public/app && npm install && cd ../..
-
-# Build the frontend
+npm install && cd public/app && npm install && cd ../..
 npm run build
-
-# Start Samara
-npm start
-```
-
-Samara will open a browser window at `http://localhost:3000/_app/`.
-
-### Install as a CLI tool
-
-```bash
-# From the project directory
 npm link
-
-# Now you can run it from anywhere
-samara                          # opens in current directory
-samara /path/to/your/project    # opens in a specific directory
-samara --port 8080              # custom port
-samara --no-open                # don't open browser automatically
 ```
 
-### Development mode
+That's it. Now you can use `samara` from anywhere:
 
 ```bash
-npm run dev
-```
-
-This starts the Express server and Vite dev server concurrently with hot reload.
-
----
-
-## Usage
-
-### Basic workflow
-
-```bash
-# Start Samara in your project directory
-cd your-project
+# Open Samara in the current directory
 samara
+
+# Open in a specific project
+samara ~/projects/my-app
+
+# Custom port
+samara --port 8080
+
+# Don't open browser automatically
+samara --no-open
 ```
 
-1. Samara opens a browser with the workspace
-2. Type a prompt in the chat panel (e.g., "Add a login page with email and password")
-3. The agent reads your code, makes changes, and refreshes the preview
-4. You see the result live in the preview panel
-5. Continue the conversation to iterate
+A browser window opens automatically with the full workspace.
 
-### CLI options
+### CLI reference
 
 ```
 Usage: samara [options] [directory]
@@ -156,13 +129,36 @@ Options:
   -h, --help               Display help
 ```
 
-### Setting up the preview
+---
 
-The preview panel proxies a local dev server. When an agent detects a running server (e.g., `localhost:8081`), it automatically configures the preview. You can also set it manually via the address bar or the `SetPreviewURL` tool.
+## Usage
 
-### Working with Polymer / legacy projects
+1. `cd` into your project and run `samara`
+2. Type a prompt in the chat panel (e.g., "Add a login page with email and password")
+3. The agent reads your code, makes changes, and refreshes the preview
+4. You see the result live in the preview panel
+5. Continue the conversation to iterate
+
+### Live preview
+
+The preview panel proxies your local dev server. When an agent detects a running server (e.g., `localhost:8081`), it automatically configures the preview. You can also set it manually via the address bar.
+
+### Framework-specific instructions
 
 Samara works with any web project. For framework-specific instructions, add them to your project's `CLAUDE.md` file — agents read it automatically via the Claude Code SDK.
+
+### Development mode
+
+If you want to contribute or hack on Samara itself:
+
+```bash
+git clone https://github.com/InuYashaMX/samara.git
+cd samara
+npm install && cd public/app && npm install && cd ../..
+npm run dev
+```
+
+This starts the Express server and Vite dev server concurrently with hot reload.
 
 ---
 
