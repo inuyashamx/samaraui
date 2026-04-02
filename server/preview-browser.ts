@@ -200,15 +200,18 @@ class PreviewBrowser {
         };
         const frameId = findFrame(frameTree);
 
-        // Get full page dimensions from inside the iframe
+        // Get full page dimensions and device pixel ratio from inside the iframe
         const metrics = await frame.evaluate(() => ({
           width: Math.max(document.documentElement.scrollWidth, document.documentElement.clientWidth),
           height: Math.max(document.documentElement.scrollHeight, document.documentElement.clientHeight),
+          dpr: window.devicePixelRatio || 1,
         }));
 
-        // Cap dimensions to stay under API limit (max 7680px per side)
-        const captureWidth = Math.min(metrics.width, 7680);
-        const captureHeight = Math.min(metrics.height, 4000);
+        // Cap dimensions to stay under API limit (8000px per side in final image)
+        // CDP scale:1 still multiplies by devicePixelRatio, so divide max by DPR
+        const maxPx = Math.floor(7900 / metrics.dpr); // 7900 leaves margin under 8000
+        const captureWidth = Math.min(metrics.width, maxPx);
+        const captureHeight = Math.min(metrics.height, maxPx);
 
         // Take full page screenshot via CDP
         const clip = { x: 0, y: 0, width: captureWidth, height: captureHeight, scale: 1 };

@@ -60,7 +60,7 @@ const program = new Command();
 program
   .name("samaraui")
   .description("Web UI for Claude Code")
-  .version("0.3.0")
+  .version("0.3.1")
   .argument("[directory]", "Working directory for agents", process.cwd())
   .option("-p, --port <port>", "Port to run on", "4827")
   .option("--no-open", "Don't open browser automatically")

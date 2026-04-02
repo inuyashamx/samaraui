@@ -1,6 +1,6 @@
 {
   "name": "samaraui",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A web UI for Claude Code - chat with agents and preview their work in real-time",
   "main": "server/index.ts",
   "type": "module",
