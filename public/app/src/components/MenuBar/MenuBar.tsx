@@ -336,6 +336,7 @@ export default function MenuBar() {
       { label: "", separator: true },
       { label: "Activity Log", action: () => { togglePanel("activityLog"); setActiveMenu(null); } },
       { label: "Usage Dashboard", action: () => { togglePanel("usageDashboard"); setActiveMenu(null); } },
+      { label: "Token Report", action: () => { togglePanel("tokenReport"); setActiveMenu(null); } },
     ],
     Tools: [
       { label: "Terminal", action: () => { togglePanel("terminal"); setActiveMenu(null); } },

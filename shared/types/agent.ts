@@ -16,6 +16,7 @@ export interface Tab {
   lastDuration: number | null;
   lastTurns: number | null;
   lastInputTokens: number | null;
+  usageHistory: TurnUsage[];
 }
 
 export interface ImageAttachment {
@@ -33,6 +34,15 @@ export interface Message {
   toolResult?: string;
   elapsed?: number;
   timestamp?: number;
+}
+
+export interface TurnUsage {
+  turn: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheRead: number;
+  cacheCreation: number;
+  timestamp: number;
 }
 
 export type AgentStatus = "idle" | "running" | "error";
@@ -56,5 +66,6 @@ export function createDefaultTab(id: string, name: string): Tab {
     lastDuration: null,
     lastTurns: null,
     lastInputTokens: null,
+    usageHistory: [],
   };
 }

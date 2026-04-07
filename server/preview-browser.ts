@@ -207,14 +207,18 @@ class PreviewBrowser {
           dpr: window.devicePixelRatio || 1,
         }));
 
-        // Cap dimensions to stay under API limit (8000px per side in final image)
-        // CDP scale:1 still multiplies by devicePixelRatio, so divide max by DPR
-        const maxPx = Math.floor(7900 / metrics.dpr); // 7900 leaves margin under 8000
-        const captureWidth = Math.min(metrics.width, maxPx);
-        const captureHeight = Math.min(metrics.height, maxPx);
+        // Cap final image to 1950px per side (under 2000px API limit for multi-image requests)
+        // CDP captures at devicePixelRatio by default, then we apply our own scale
+        const MAX_FINAL_PX = 1950;
+        const captureWidth = metrics.width;
+        const captureHeight = metrics.height;
+
+        // Scale down so the largest dimension * dpr * scale <= MAX_FINAL_PX
+        const rawMaxDim = Math.max(captureWidth, captureHeight) * metrics.dpr;
+        const scale = rawMaxDim > MAX_FINAL_PX ? MAX_FINAL_PX / rawMaxDim : 1;
 
         // Take full page screenshot via CDP
-        const clip = { x: 0, y: 0, width: captureWidth, height: captureHeight, scale: 1 };
+        const clip = { x: 0, y: 0, width: captureWidth, height: captureHeight, scale };
         const result = await cdp.send("Page.captureScreenshot", {
           format: "jpeg",
           quality: 75,

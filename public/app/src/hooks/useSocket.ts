@@ -83,9 +83,10 @@ export function useSocket() {
       }
     });
 
-    socket.on("agent:usage", ({ agentId, inputTokens }) => {
+    socket.on("agent:usage", ({ agentId, inputTokens, outputTokens, cacheRead, cacheCreation }) => {
       const s = useAppStore.getState();
       s.updateTab(agentId, { lastInputTokens: inputTokens });
+      s.pushUsage(agentId, { inputTokens, outputTokens, cacheRead, cacheCreation });
     });
 
     socket.on("agent:error", ({ agentId, error }) => {

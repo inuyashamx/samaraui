@@ -70,6 +70,9 @@ class AgentManager {
 
   _createPreviewServer(socket: Socket, agentId: string): any {
     const browser = this.previewBrowser;
+    const shortId = agentId.slice(-6);
+    const logTool = (name: string, detail?: string) =>
+      console.log(`  [${shortId}] ${name}${detail ? ` ${detail}` : ""}`);
 
     return createSdkMcpServer({
       name: "preview-tools",
@@ -81,6 +84,7 @@ class AgentManager {
           {},
           async () => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("GetPreviewURL");
             const url = await browser.getUrl(agentId);
             return { content: [{ type: "text", text: `Current preview URL: ${url}` }] };
           }
@@ -92,7 +96,7 @@ class AgentManager {
           async ({ url }: { url: string }) => {
             let normalized = url.trim();
             if (!/^https?:\/\//.test(normalized)) normalized = `http://${normalized}`;
-            // Configure the Express proxy
+            logTool("SetPreviewURL", normalized);
             socket.emit("preview:set-url", { agentId, url: normalized });
             return { content: [{ type: "text", text: `Preview URL set to ${normalized}. The preview panel will now show this URL.` }] };
           }
@@ -103,10 +107,15 @@ class AgentManager {
           { route: z.string().describe("Route to navigate to, e.g. '/' or '/modulo/clientes'") },
           async ({ route }: { route: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            // Also emit socket event to update the address bar in UI
-            socket.emit("preview:navigate", { agentId, route });
-            await browser.navigate(agentId, route);
-            return { content: [{ type: "text", text: `Preview navigated to ${route}` }] };
+            logTool("NavigatePreview", route);
+            try {
+              socket.emit("preview:navigate", { agentId, route });
+              await browser.navigate(agentId, route);
+              return { content: [{ type: "text", text: `Preview navigated to ${route}` }] };
+            } catch (err: any) {
+              console.error(`  [${shortId}] NavigatePreview ERROR:`, err.message);
+              return { content: [{ type: "text", text: `Navigation failed: ${err.message}` }] };
+            }
           }
         ),
         tool(
@@ -115,9 +124,16 @@ class AgentManager {
           {},
           async () => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            socket.emit("preview:refresh", { agentId });
-            await browser.refresh(agentId);
-            return { content: [{ type: "text", text: "Preview refreshed" }] };
+            logTool("RefreshPreview");
+            try {
+              socket.emit("preview:refresh", { agentId });
+              await browser.refresh(agentId);
+              logTool("RefreshPreview", "done");
+              return { content: [{ type: "text", text: "Preview refreshed" }] };
+            } catch (err: any) {
+              console.error(`  [${shortId}] RefreshPreview ERROR:`, err.message);
+              return { content: [{ type: "text", text: `Refresh failed: ${err.message}` }] };
+            }
           }
         ),
         tool(
@@ -126,17 +142,26 @@ class AgentManager {
           {},
           async () => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
-            const data = await browser.screenshot(agentId);
-            if (!data) {
-              return { content: [{ type: "text", text: "Could not capture screenshot. Preview may not be loaded." }] };
+            logTool("ScreenshotPreview");
+            try {
+              const data = await browser.screenshot(agentId);
+              if (!data) {
+                logTool("ScreenshotPreview", "no data returned");
+                return { content: [{ type: "text", text: "Could not capture screenshot. Preview may not be loaded." }] };
+              }
+              const sizeKb = Math.round(data.length * 0.75 / 1024);
+              logTool("ScreenshotPreview", `done (${sizeKb}KB)`);
+              return {
+                content: [{
+                  type: "image",
+                  data,
+                  mimeType: "image/jpeg",
+                }],
+              };
+            } catch (err: any) {
+              console.error(`  [${shortId}] ScreenshotPreview ERROR:`, err.message);
+              return { content: [{ type: "text", text: `Screenshot failed: ${err.message}` }] };
             }
-            return {
-              content: [{
-                type: "image",
-                data,
-                mimeType: "image/jpeg",
-              }],
-            };
           }
         ),
         tool(
@@ -145,6 +170,7 @@ class AgentManager {
           { selector: z.string().describe("CSS selector, e.g. '.my-class', '#my-id', 'paper-button'") },
           async ({ selector }: { selector: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("InspectElement", selector);
             const result = await browser.inspect(agentId, selector);
             return { content: [{ type: "text", text: result }] };
           }
@@ -155,6 +181,7 @@ class AgentManager {
           { selector: z.string().optional().describe("CSS selector. Omit for full body.") },
           async ({ selector }: { selector?: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("GetPageContent", selector || "body");
             const html = await browser.getPageContent(agentId, selector);
             return { content: [{ type: "text", text: html }] };
           }
@@ -165,6 +192,7 @@ class AgentManager {
           { selector: z.string().describe("CSS selector of element to click") },
           async ({ selector }: { selector: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("ClickElement", selector);
             const result = await browser.click(agentId, selector);
             return { content: [{ type: "text", text: result }] };
           }
@@ -178,6 +206,7 @@ class AgentManager {
           },
           async ({ direction, amount }: { direction: "up" | "down"; amount?: number }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("ScrollPreview", `${direction} ${amount || 500}px`);
             const result = await browser.scroll(agentId, direction, amount);
             return { content: [{ type: "text", text: result }] };
           }
@@ -191,6 +220,7 @@ class AgentManager {
           },
           async ({ selector, text }: { selector: string; text: string }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("TypeInElement", `${selector} "${text.slice(0, 30)}"`);
             const result = await browser.type(agentId, selector, text);
             return { content: [{ type: "text", text: result }] };
           }
@@ -204,6 +234,7 @@ class AgentManager {
           },
           async ({ level, clear }: { level?: string; clear?: boolean }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("GetConsoleLogs", level || "all");
             const logs = browser.getConsoleLogs(level, clear);
             if (logs.length === 0) return { content: [{ type: "text", text: "No console logs captured." }] };
             const formatted = logs.map((l) => {
@@ -223,6 +254,7 @@ class AgentManager {
           },
           async ({ errorsOnly, clear }: { errorsOnly?: boolean; clear?: boolean }) => {
             if (!browser) return { content: [{ type: "text", text: "Preview browser not available." }] };
+            logTool("GetNetworkLogs", errorsOnly ? "errors" : "all");
             const logs = browser.getNetworkLogs({ errorsOnly, clear });
             if (logs.length === 0) return { content: [{ type: "text", text: errorsOnly ? "No failed network requests." : "No network requests captured." }] };
             const formatted = logs.map((l) => {

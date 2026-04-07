@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Tab, Message } from "@shared/types/agent";
+import type { Tab, Message, TurnUsage } from "@shared/types/agent";
 import type { UsageData } from "@shared/types/settings";
 import { createDefaultTab } from "@shared/types/agent";
 
@@ -25,6 +25,7 @@ interface AppStore {
   addMessage: (tabId: string, message: Message) => void;
   appendToLastAssistant: (tabId: string, text: string) => void;
   updateLastToolMessage: (tabId: string, patch: Partial<Message>) => void;
+  pushUsage: (tabId: string, usage: Omit<TurnUsage, "turn" | "timestamp">) => void;
   clearMessages: (tabId: string) => void;
 
   // Usage
@@ -140,6 +141,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }),
     })),
 
+  pushUsage: (tabId, usage) =>
+    set((s) => ({
+      tabs: s.tabs.map((t) => {
+        if (t.id !== tabId) return t;
+        const turn = t.usageHistory.length + 1;
+        return {
+          ...t,
+          usageHistory: [...t.usageHistory, { ...usage, turn, timestamp: Date.now() }],
+        };
+      }),
+    })),
+
   clearMessages: (tabId) =>
     set((s) => ({
       tabs: s.tabs.map((t) =>
@@ -152,6 +165,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
               lastDuration: null,
               lastTurns: null,
               lastInputTokens: null,
+              usageHistory: [],
             }
           : t
       ),

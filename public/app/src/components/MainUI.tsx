@@ -14,6 +14,7 @@ import McpServersPanel from "@/components/Panels/McpServersPanel";
 import SkillsPanel from "@/components/Panels/SkillsPanel";
 import SettingsPanel from "@/components/Panels/SettingsPanel";
 import UsageDashboard from "@/components/Panels/UsageDashboard";
+import TokenReport from "@/components/Panels/TokenReport";
 import TerminalPanel from "@/components/Panels/TerminalPanel";
 import ClaudeSettingsPanel from "@/components/Panels/ClaudeSettingsPanel";
 
@@ -38,6 +39,7 @@ export default function MainUI() {
       case "skills": return <SkillsPanel onClose={onClose} />;
       case "settings": return <SettingsPanel onClose={onClose} />;
       case "usageDashboard": return <UsageDashboard onClose={onClose} />;
+      case "tokenReport": return <TokenReport onClose={onClose} />;
       case "terminal": return <TerminalPanel onClose={onClose} />;
       case "claudeSettings": return <ClaudeSettingsPanel onClose={onClose} />;
       default: return null;
