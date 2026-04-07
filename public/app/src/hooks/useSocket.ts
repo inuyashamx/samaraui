@@ -114,7 +114,8 @@ export function useSocket() {
     socket.on("preview:get-url", ({ agentId }) => {
       try {
         const iframe = document.getElementById(`preview-frame-${agentId}`) as HTMLIFrameElement;
-        const url = iframe?.contentWindow?.location.pathname || "/";
+        const loc = iframe?.contentWindow?.location;
+        const url = loc ? loc.pathname + loc.search + loc.hash : "/";
         socket.emit("preview:current-url", { url });
       } catch {
         socket.emit("preview:current-url", { url: "/" });

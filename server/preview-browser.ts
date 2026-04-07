@@ -245,7 +245,8 @@ class PreviewBrowser {
   async navigate(agentId: string, route: string): Promise<void> {
     const frame = await this._getPreviewFrame(agentId);
     if (frame) {
-      await frame.goto(frame.url().replace(/\/[^/]*$/, "") + route, {
+      const origin = new URL(frame.url()).origin;
+      await frame.goto(origin + route, {
         waitUntil: "domcontentloaded",
         timeout: 10000,
       }).catch(() => {});
@@ -323,7 +324,8 @@ class PreviewBrowser {
     const frame = await this._getPreviewFrame(agentId);
     if (!frame) return "/";
     try {
-      return new URL(frame.url()).pathname;
+      const u = new URL(frame.url());
+      return u.pathname + u.search + u.hash;
     } catch {
       return frame.url();
     }

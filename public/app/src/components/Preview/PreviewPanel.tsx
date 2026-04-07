@@ -83,9 +83,14 @@ export default function PreviewPanel({ tabId }: { tabId: string }) {
 
     const onLoad = () => {
       try {
-        const path = new URL(iframe.contentWindow?.location.href || "").pathname;
-        updateTab(tabId, { previewRoute: path });
-        getSocket().emit("preview:url-update", { url: path });
+        const u = new URL(iframe.contentWindow?.location.href || "");
+        const path = u.pathname + u.search + u.hash;
+        // Only update state if the route actually changed to avoid re-render loops
+        const current = useAppStore.getState().tabs.find((t) => t.id === tabId)?.previewRoute;
+        if (path && path !== current) {
+          updateTab(tabId, { previewRoute: path });
+          getSocket().emit("preview:url-update", { url: path });
+        }
       } catch {
         // Cross-origin, ignore
       }
